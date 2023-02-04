@@ -5,6 +5,9 @@
 #include <functional>
 #include <variant>
 #include <tuple>
+#include <ostream>
+
+#include "misc.h"
 
 using std::vector;
 using std::tuple;
@@ -22,6 +25,8 @@ struct mem_t {
   uint64_t offset;
   uint64_t size;
 };
+
+using memloc_t = tuple<mem_t, loc_t>;
 
 using kernel_t =
   std::function<
@@ -44,4 +49,47 @@ struct sendrecv_t {
 };
 
 using command_t = std::variant<apply_t, sendrecv_t>;
+
+bool operator==(loc_t const& lhs, loc_t const& rhs) {
+  return lhs.device == rhs.device && lhs.id == rhs.id;
+}
+
+std::ostream& operator<<(std::ostream& out, mem_t mem) {
+  //out << "mem_t { .size = " << mem.size << " }";
+  out << "mem:" << mem.offset;
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, loc_t loc) {
+  //out << "loc_t { .device = <not shown>, .id = " << loc.id << " }";
+  out << loc.id;
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, apply_t const& a) {
+  out << "apply_t { .loc = " << a.loc << ", .read_mems = ";
+  print_vec(out, a.read_mems);
+  out << ", .write_mems = ";
+  print_vec(out, a.write_mems);
+  out << " }";
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, sendrecv_t const& a) {
+  out << "sendrecv_t { .src = " << a.src << ", .dst = " << a.dst << ", ";
+  out << ".src_mem = " << a.src_mem << ", .dst_mem = " << a.dst_mem << " }";
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, command_t const& cmd) {
+  if(std::holds_alternative<apply_t>(cmd)) {
+    out << std::get<apply_t>(cmd);
+  } else if(std::holds_alternative<sendrecv_t>(cmd)) {
+    out << std::get<sendrecv_t>(cmd);
+  } else {
+    throw std::runtime_error("should not reach");
+  }
+  return out;
+}
+
 
