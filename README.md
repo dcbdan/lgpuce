@@ -1,4 +1,4 @@
-# The Little GPU Command Executor
+# The Little ((GPU Node) (Command Executor))
 
 ### TODO
 
