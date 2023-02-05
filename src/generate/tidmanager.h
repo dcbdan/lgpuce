@@ -35,24 +35,24 @@ struct tidmanager_t {
 
     ident_t ident = graph.insert(apply, ident_inputs);
     info.push_back(vector<info_t>());
-    info.back().push_back(info_t { .loc = loc, .mem = mem, .id = ident, .size = out_size });
+    info.back().push_back(info_t { .loc = loc, .mem = mem, .id = ident });
 
     return info.size() - 1;
   }
 
   tuple<mem_t, ident_t> get_at(tid_t tid, loc_t loc) {
-    for(auto const& [l, m, i, _]: info[tid]) {
+    for(auto const& [l, m, i]: info[tid]) {
       if(l == loc) {
         return {m, i};
       }
     }
     this->move_to(tid, loc);
-    auto const& [l, m, i, _] = info[tid].back();
+    auto const& [l, m, i] = info[tid].back();
     return {m, i};
   }
 
   void erase(tid_t tid) {
-    for(auto const& [loc, mem, _z, _zz]: info[tid]) {
+    for(auto const& [loc, mem, _z]: info[tid]) {
       allocators[loc.id].deallocate(mem.offset);
     }
     info[tid].resize(0);
@@ -64,8 +64,20 @@ struct tidmanager_t {
   }
 
   loc_t get_init_loc(tid_t tid) const& {
-    auto const& [l, _z, _zz, _zzz] = info[tid][0];
+    auto const& [l, _z, _zz] = info[tid][0];
     return l;
+  }
+
+  memloc_t get_memloc(tid_t tid) const& {
+    return info[tid][0].memloc();
+  }
+
+  tid_t sloppy_reduce(vector<tid_t> const& inns) {
+    // Just send everything to the same location and treat it
+    // as a big apply (this is not a performant implementation, hence
+    // it is called sloppy)
+    auto const& [loc,mem,_] = info[inns[0]][0];
+    return this->apply(loc, gen_aggregate(inns.size(), mem.size), inns, mem.size);
   }
 
 private:
@@ -76,7 +88,8 @@ private:
     loc_t loc;
     mem_t mem;
     ident_t id;
-    uint64_t size;
+
+    memloc_t memloc() const { return {mem,loc}; }
   };
   // For every tid, store a list of
   //   (which device, at what memory, available after what command)
@@ -84,10 +97,10 @@ private:
 
 private:
   void move_to(tid_t tid, loc_t dst_loc) {
-    auto const& [src_loc, src_mem, src_ident, size] = info[tid][0];
+    auto const& [src_loc, src_mem, src_ident] = info[tid][0];
     mem_t new_mem {
-      .offset = allocators[dst_loc.id].allocate(size),
-      .size = size };
+      .offset = allocators[dst_loc.id].allocate(src_mem.size),
+      .size = src_mem.size };
     sendrecv_t move {
       .src = src_loc,
       .dst = dst_loc,
@@ -98,7 +111,6 @@ private:
     info[tid].push_back(info_t {
       .loc  = dst_loc,
       .mem  = new_mem,
-      .id   = new_ident,
-      .size = size });
+      .id   = new_ident });
   }
 };

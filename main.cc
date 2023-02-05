@@ -4,6 +4,6 @@
 #include "src/generate/sloppy_matmul.h"
 
 int main() {
-  graph_t graph = sloppy_matmul(4, 1, 5, 1024, 2);
+  auto [graph, memlocs] = sloppy_matmul(4, 4, 5, 1024, 2);
   graph.print(std::cout);
 }

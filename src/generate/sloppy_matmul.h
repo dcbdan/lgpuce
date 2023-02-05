@@ -5,15 +5,12 @@
 #include "../kernels.h"
 
 // ik,kj->ij
-graph_t sloppy_matmul(
+tuple<graph_t, vector<memloc_t>> sloppy_matmul(
   uint64_t bi, uint64_t bj, uint64_t bk,
   uint64_t nd,
   int num_devices)
 {
   using tid_t = tidmanager_t::tid_t;
-  if(bj > 1) {
-    throw std::runtime_error("aggregation not implemented yet");
-  }
 
   // Make some devices (managed by tidmanager),
   // but explicitly make sure they can hold enough memory
@@ -51,9 +48,18 @@ graph_t sloppy_matmul(
     join.push_back(out);
   }}}
 
+  vector<memloc_t> out;
   if(bj > 1) {
-    // TODO the aggregation
+    for(uint64_t i = 0; i != bi; i++) {
+    for(uint64_t j = 0; j != bj; j++) {
+      vector<tid_t> aggs;
+      for(uint64_t k = 0; k != bk; k++) {
+        aggs.push_back(join[i*bj*bk + j*bk + k]);
+      }
+      tid_t out_tid = manager.sloppy_reduce(aggs);
+      out.push_back(manager.get_memloc(out_tid));
+    }}
   }
 
-  return manager.get_graph();
+  return {manager.get_graph(), out};
 }
