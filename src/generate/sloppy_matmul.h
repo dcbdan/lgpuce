@@ -15,7 +15,7 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
   // Make some devices (managed by tidmanager),
   // but explicitly make sure they can hold enough memory
   uint64_t mat_size = sizeof(float)*nd*nd;
-  uint64_t device_size = mat_size*(bi*bk + bj*bk + bi*bj*bk);
+  uint64_t device_size = mat_size*(25 * (bi*bk + bj*bk + bi*bj*bk)); // TODO what is the actual value?
   tidmanager_t manager(num_devices, device_size);
 
   int device = 0;

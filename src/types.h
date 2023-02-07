@@ -81,6 +81,9 @@ std::ostream& operator<<(std::ostream& out, sendrecv_t const& a) {
   return out;
 }
 
+// Make sure to place this function after the command types
+// otherwise the command type will be converted to a command_t and
+// an infinite loop will happen
 std::ostream& operator<<(std::ostream& out, command_t const& cmd) {
   if(std::holds_alternative<apply_t>(cmd)) {
     out << std::get<apply_t>(cmd);
