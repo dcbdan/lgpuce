@@ -48,7 +48,7 @@ struct devicemanager_t {
       // Get a command that needs to be executed, or return
       {
         std::unique_lock lk(m);
-        cv.wait(lk, [this]{return num_remaining == 0 || ready.size() > 0;});
+        cv.wait(lk, [this](){return num_remaining == 0 || ready.size() > 0;});
         if(num_remaining == 0) {
           return;
         }
