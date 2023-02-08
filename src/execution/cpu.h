@@ -9,13 +9,22 @@
 #include <queue>
 #include <unordered_map>
 
+#include <memory>
+
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 
-struct devicemanager_t {
-  devicemanager_t(graph_t const& g, uint64_t memory_size, loc_t this_loc):
-    graph(g), counts(g.size()), this_loc(this_loc), num_remaining(0), memory(memory_size)
+struct cluster_manager_t;
+
+struct device_manager_t {
+  device_manager_t(
+    cluster_manager_t* manager,
+    graph_t const& g,
+    uint64_t memory_size,
+    loc_t this_loc):
+      manager(manager), graph(g), counts(g.size()), this_loc(this_loc),
+      num_remaining(0), memory(memory_size)
   {
     auto const& info = g.get_info();
     for(int ident = 0; ident != info.size(); ++ident) {
@@ -40,8 +49,8 @@ struct devicemanager_t {
     }
   }
 
-  devicemanager_t(graph_t const& g, loc_t this_loc):
-    devicemanager_t(g, g.memory_size(this_loc), this_loc)
+  device_manager_t(cluster_manager_t* manager, graph_t const& g, loc_t this_loc):
+    device_manager_t(manager, g, g.memory_size(this_loc), this_loc)
   {}
 
   void apply_runner(int runner_id) {
@@ -134,7 +143,7 @@ struct devicemanager_t {
         lk.unlock();
 
         sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
-        auto& other_manager = get_devicemanager(move.dst);
+        auto& other_manager = get_device_manager(move.dst);
         other_manager.from_send_to_recv_can_send(which);
       } else if(action == comm_action_t::can_recv) {
         // notify the sender that we can do a recv
@@ -144,7 +153,7 @@ struct devicemanager_t {
         lk.unlock();
 
         sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
-        auto& other_manager = get_devicemanager(move.dst);
+        auto& other_manager = get_device_manager(move.dst);
         other_manager.from_recv_to_send_can_recv(which);
       } else if(action == comm_action_t::start_send) {
         // as the sender, put a read lock around the memory
@@ -160,7 +169,7 @@ struct devicemanager_t {
         char* send_ptr = memory.data() + move.src_mem.offset;
         memory_lock.lock({send_interval}, {});
 
-        auto& other_manager = get_devicemanager(move.dst);
+        auto& other_manager = get_device_manager(move.dst);
         other_manager.from_send_to_recv_started_send(which, send_ptr);
       } else if(action == comm_action_t::do_recv) {
         // get a write lock around the recv memory and do the copy
@@ -182,7 +191,7 @@ struct devicemanager_t {
         }
 
         // 3. Notify complete
-        auto& other_manager = get_devicemanager(move.src);
+        auto& other_manager = get_device_manager(move.src);
         other_manager.from_recv_to_send_notify_complete(which);
 
         lk.lock();
@@ -264,10 +273,11 @@ private:
   std::queue<int> send_start;
   std::queue<int> send_complete;
 
+  cluster_manager_t* manager;
+
 private:
-  devicemanager_t& get_devicemanager(loc_t const& loc) {
-    return *this; // TODO implement; don't return self!
-  }
+  device_manager_t& get_device_manager(loc_t const& loc);
+
   void from_send_to_recv_can_send(ident_t const& which) {
     std::unique_lock lk(m);
     recv_ready[which]++;
@@ -325,5 +335,41 @@ private:
       throw std::runtime_error("should not reach");
     }
   }
-
 };
+
+using device_manager_ptr_t = std::shared_ptr<device_manager_t>;
+
+struct cluster_manager_t {
+  cluster_manager_t(graph_t const& g, int num_locs):
+    graph(g)
+  {
+    devices.reserve(num_locs);
+    for(int i = 0; i != num_locs; ++i) {
+      loc_t loc { .device = device_t::cpu, .id = i };
+      devices.emplace_back(new device_manager_t(this, graph, loc));
+    }
+  }
+
+  cluster_manager_t(graph_t const& g, uint64_t memory_size, int num_locs):
+    graph(g)
+  {
+    devices.reserve(num_locs);
+    for(int i = 0; i != num_locs; ++i) {
+      loc_t loc { .device = device_t::cpu, .id = i };
+      devices.emplace_back(new device_manager_t(this, graph, memory_size, loc));
+    }
+  }
+
+  device_manager_t& get(loc_t loc) {
+    return *devices[loc.id];
+  }
+
+private:
+  graph_t const& graph;
+  vector<device_manager_ptr_t> devices;
+};
+
+device_manager_t& device_manager_t::get_device_manager(loc_t const& loc) {
+  return manager->get(loc);
+}
+

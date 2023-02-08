@@ -3,17 +3,14 @@
 #include "src/graph.h"
 #include "src/generate/sloppy_matmul.h"
 #include "src/execution/cpu.h"
-#include "src/execution/interval_lock.h"
 
 int main() {
-  //auto [graph, memlocs] = sloppy_matmul(4, 4, 5, 1024, 2);
-  //graph.print(std::cout);
-
-  auto [graph, memlocs] = sloppy_matmul(2, 2, 2, 1024, 1);
+  int num_devices = 2;
+  auto [graph, memlocs] = sloppy_matmul(2, 2, 2, 1024, num_devices);
   graph.print(std::cout);
-  loc_t cpu0 { .device = device_t::cpu, .id = 0 };
-  devicemanager_t manager(graph, cpu0);
+
   std::cout << "-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*" << std::endl;
-  //manager.launch(20);
-  manager.launch(3);
+
+  cluster_manager_t manager(graph, num_devices);
+  //manager.launch(3);
 }
