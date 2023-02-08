@@ -65,6 +65,10 @@ struct graph_t {
     return info[id].cmd;
   }
 
+  command_t const& operator[](ident_t const& id) const {
+    return get_command(id);
+  }
+
   vector<ident_t> const& get_parents(ident_t id) const {
     return info[id].parents;
   }
@@ -121,6 +125,39 @@ struct graph_t {
 
   vector<info_t> const& get_info() const { return info; }
   uint64_t size() const { return info.size(); }
+
+  uint64_t memory_size(loc_t const& loc) const {
+    auto get_memories = [&loc](command_t const& cmd) {
+      vector<mem_t> ret;
+      if(std::holds_alternative<apply_t>(cmd)) {
+        apply_t const& apply = std::get<apply_t>(cmd);
+        if (apply.loc == loc) {
+          ret.insert(ret.end(), apply.read_mems.begin(),  apply.read_mems.end());
+          ret.insert(ret.end(), apply.write_mems.begin(), apply.write_mems.end());
+        }
+        return ret;
+      } else if(std::holds_alternative<sendrecv_t>(cmd)) {
+        sendrecv_t const& move = std::get<sendrecv_t>(cmd);
+        if(move.src == loc) {
+          ret.push_back(move.src_mem);
+        }
+        if(move.dst == loc){
+          ret.push_back(move.dst_mem);
+        } // It shouldn't be allowed for move.dst == move.src  ...
+        return ret;
+      } else {
+        throw std::runtime_error("should not reach");
+        return ret;
+      }
+    };
+    uint64_t total = 0;
+    for(auto const& [cmd, _0, _1]: info) {
+      for(mem_t const& mem: get_memories(cmd)) {
+        total = std::max(total, mem.offset + mem.size);
+      }
+    }
+    return total;
+  }
 
 private:
   vector<info_t> info;

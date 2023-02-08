@@ -4,7 +4,7 @@
 #include "memorymanager.h"
 
 // tid == tensor identifier;
-// A tid references the a value that is the same across
+// A tid references a value that is the same across
 // locations
 struct tidmanager_t {
   using tid_t = uint64_t;
@@ -77,7 +77,8 @@ struct tidmanager_t {
     // as a big apply (this is not a performant implementation, hence
     // it is called sloppy)
     auto const& [loc,mem,_] = info[inns[0]][0];
-    return this->apply(loc, gen_aggregate(inns.size(), mem.size), inns, mem.size);
+    auto agg = gen_aggregate(inns.size(), mem.size / sizeof(float));
+    return this->apply(loc, agg, inns, mem.size);
   }
 
 private:

@@ -12,7 +12,7 @@ kernel_t gen_cpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
     for(uint64_t i = 0; i != ni; ++i) {
     for(uint64_t j = 0; j != nj; ++j) {
       out[i*nj + j] = 0.0;
-      for(uint64_t k = 0; j != nk; ++k) {
+      for(uint64_t k = 0; k != nk; ++k) {
         out[i*nj + j] += lhs[i*nk + k] * rhs[k*nj + j];
       }
     }}

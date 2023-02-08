@@ -3,6 +3,7 @@
 #include "../types.h"
 #include "tidmanager.h"
 #include "../kernels.h"
+#include "../kernels/print.h"
 
 // ik,kj->ij
 tuple<graph_t, vector<memloc_t>> sloppy_matmul(
@@ -49,6 +50,7 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
   }}}
 
   vector<memloc_t> out;
+  vector<tid_t> out_tids;
   if(bj > 1) {
     for(uint64_t i = 0; i != bi; i++) {
     for(uint64_t j = 0; j != bj; j++) {
@@ -58,8 +60,33 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
       }
       tid_t out_tid = manager.sloppy_reduce(aggs);
       out.push_back(manager.get_memloc(out_tid));
+      out_tids.push_back(out_tid);
     }}
   }
 
-  return {manager.get_graph(), out};
+  // Now call print the print kernels and have each output depend on the next
+  loc_t loc0 = loc_t{ .device = device_t::cpu, .id = 0 };
+  auto print_op = gen_print({nd,nd});
+  auto print_cmd = [&](mem_t p_mem) {
+    return apply_t {
+      .loc = loc0,
+      .read_mems = {p_mem},
+      .write_mems = {},
+      .op = print_op
+    };
+  };
+
+  graph_t graph = manager.get_graph();
+
+  auto const& [mem, ident] = manager.get_at(out_tids[0], loc0);
+  ident_t prev_print = graph.insert(print_cmd(mem), {ident});
+  if(out_tids.size() > 1) {
+    for(int i = 1; i != out_tids.size(); ++i) {
+      auto const& [mem, ident] = manager.get_at(out_tids[i], loc0);
+      // Here, prev_ident will make sure they all print one at a time
+      prev_print = graph.insert(print_cmd(mem), {ident, prev_print});
+    }
+  }
+
+  return {graph, out};
 }

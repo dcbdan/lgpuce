@@ -4,6 +4,7 @@
 
 #include "../types.h"
 #include "../graph.h"
+#include "interval_lock.h"
 
 #include <queue>
 
@@ -16,8 +17,8 @@
 // - how should sending and recving be accomplished?
 
 struct devicemanager_t {
-  devicemanager_t(graph_t const& g, loc_t this_loc):
-    graph(g), counts(g.size()), num_remaining(0)
+  devicemanager_t(graph_t const& g, uint64_t memory_size, loc_t this_loc):
+    graph(g), counts(g.size()), num_remaining(0), memory(memory_size)
   {
     auto const& info = g.get_info();
     for(int ident = 0; ident != info.size(); ++ident) {
@@ -42,6 +43,10 @@ struct devicemanager_t {
     }
   }
 
+  devicemanager_t(graph_t const& g, loc_t this_loc):
+    devicemanager_t(g, g.memory_size(this_loc), this_loc)
+  {}
+
   void apply_runner(int runner_id) {
     int which;
     while(true) {
@@ -56,10 +61,28 @@ struct devicemanager_t {
         ready.pop();
       }
 
+      // Do the command execution
       {
-        std::unique_lock lk_print(m_print);
-        // Do the command execution
-        std::cout << "cmd " << which << " @ runner " << runner_id << ": " << graph.get_command(which) << std::endl;
+        apply_t const& apply = std::get<apply_t>(graph[which]);
+        vector<interval_t> read_intervals, write_intervals;
+        vector<void*> read_mems, write_mems;
+        char* data = memory.data();
+        for(auto const& mem: apply.read_mems) {
+          read_intervals.push_back(mem.interval());
+          read_mems.push_back(data + mem.offset);
+        }
+        for(auto const& mem: apply.write_mems) {
+          write_intervals.push_back(mem.interval());
+          write_mems.push_back(data + mem.offset);
+        }
+        auto memlock = memory_lock.acquire(read_intervals, write_intervals);
+        apply.op(read_mems, write_mems);
+        {
+          std::unique_lock lk_print(m_print);
+          std::cout << "cmd " << which <<
+                       " @ runner " << runner_id << ": " <<
+                       graph.get_command(which) << std::endl;
+        }
       }
 
       {
@@ -93,6 +116,9 @@ private:
   vector<int> counts;
   int num_remaining;
   std::queue<int> ready;
+
+  interval_lock_t memory_lock;
+  vector<char> memory;
 
   std::mutex m, m_print; // TODO remove m_print
   std::condition_variable cv;

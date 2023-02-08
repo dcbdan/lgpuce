@@ -7,6 +7,8 @@
 #include <tuple>
 #include <ostream>
 
+#include <iostream> // TODO
+
 #include "misc.h"
 
 using std::vector;
@@ -21,9 +23,15 @@ struct loc_t {
   int id;
 };
 
+using interval_t = tuple<uint64_t, uint64_t>;
+
 struct mem_t {
   uint64_t offset;
   uint64_t size;
+
+  interval_t interval() const {
+    return {offset, offset + size};
+  }
 };
 
 using memloc_t = tuple<mem_t, loc_t>;
