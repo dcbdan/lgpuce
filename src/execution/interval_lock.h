@@ -16,20 +16,11 @@ struct interval_lock_t {
                 interval_lock_t* self):
       read(read), write(write), self(self)
     {
-      // Acquire the lock when the condition is fully satisfied
-      std::unique_lock lk(self->m);
-      self->cv.wait(lk, [this]() { return
-        this->self->available(
-          this->read,
-          this->write);
-      });
       self->lock(this->read, this->write);
     }
 
     ~raii_lock_t() {
-      // Let self know that the locks are no longer necessary
-      std::unique_lock lk(self->m);
-      self->release(this->read, this->write);
+      self->unlock(this->read, this->write);
     }
   private:
     vector<interval_t> read;
@@ -39,6 +30,39 @@ struct interval_lock_t {
 
   raii_lock_t acquire(vector<interval_t> const& read, vector<interval_t> const& write) {
     return raii_lock_t(read, write, this);
+  }
+
+  void lock(vector<interval_t> const& read,
+            vector<interval_t> const& write)
+  {
+    // Acquire the lock when the condition is fully satisfied
+    std::unique_lock lk(m);
+    cv.wait(lk, [this, &read, &write]() { return
+      this->available(
+        read,
+        write);
+    });
+
+    for(interval_t const& r: read) {
+      reading.increment(r);
+    }
+    for(interval_t const& w: write) {
+      writing.increment(w);
+    }
+  }
+
+  void unlock(vector<interval_t> const& read,
+              vector<interval_t> const& write)
+  {
+    // Let self know that the locks are no longer necessary
+    std::unique_lock lk(m);
+
+    for(interval_t const& r: read) {
+      reading.decrement(r);
+    }
+    for(interval_t const& w: write) {
+      writing.decrement(w);
+    }
   }
 
 private:
@@ -65,28 +89,6 @@ private:
       }
     }
     return true;
-  }
-
-  void lock(vector<interval_t> const& read,
-            vector<interval_t> const& write)
-  {
-    for(interval_t const& r: read) {
-      reading.increment(r);
-    }
-    for(interval_t const& w: write) {
-      writing.increment(w);
-    }
-  }
-
-  void release(vector<interval_t> const& read,
-               vector<interval_t> const& write)
-  {
-    for(interval_t const& r: read) {
-      reading.decrement(r);
-    }
-    for(interval_t const& w: write) {
-      writing.decrement(w);
-    }
   }
 };
 
