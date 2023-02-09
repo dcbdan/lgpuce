@@ -86,7 +86,7 @@ struct device_manager_t {
         {
           std::unique_lock lk_print(m_print);
           std::cout << "cmd " << which <<
-                       " @ runner " << runner_id << ": " <<
+                       " @ apply runner " << runner_id << ": " <<
                        graph.get_command(which) << std::endl;
         }
       }
@@ -193,6 +193,13 @@ struct device_manager_t {
         // 3. Notify complete
         auto& other_manager = get_device_manager(move.src);
         other_manager.from_recv_to_send_notify_complete(which);
+
+        {
+          std::unique_lock lk_print(m_print);
+          std::cout << "cmd " << which <<
+                       " @ comm runner " << runner_id << ": " <<
+                       graph.get_command(which) << std::endl;
+        }
 
         this->completed_command(which);
       } else if(action == comm_action_t::complete_send) {
