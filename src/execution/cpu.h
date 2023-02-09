@@ -153,7 +153,7 @@ struct device_manager_t {
         lk.unlock();
 
         sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
-        auto& other_manager = get_device_manager(move.dst);
+        auto& other_manager = get_device_manager(move.src);
         other_manager.from_recv_to_send_can_recv(which);
       } else if(action == comm_action_t::start_send) {
         // as the sender, put a read lock around the memory
@@ -194,7 +194,6 @@ struct device_manager_t {
         auto& other_manager = get_device_manager(move.src);
         other_manager.from_recv_to_send_notify_complete(which);
 
-        lk.lock();
         this->completed_command(which);
       } else if(action == comm_action_t::complete_send) {
         // release the read lock around the send memory
@@ -208,7 +207,6 @@ struct device_manager_t {
         interval_t send_interval = move.src_mem.interval();
         memory_lock.unlock({send_interval}, {});
 
-        lk.lock();
         this->completed_command(which);
       } else {
         throw std::runtime_error("should not reach");
@@ -216,11 +214,14 @@ struct device_manager_t {
     }
   }
 
-  void launch(int num_runners) {
-    std::vector<std::thread> runners;
-    runners.reserve(num_runners);
-    for(int i = 0; i != num_runners; ++i) {
+  void run(int num_apply_runners, int num_communicate_runners) {
+    vector<std::thread> runners;
+    runners.reserve(num_apply_runners + num_communicate_runners);
+    for(int i = 0; i != num_apply_runners; ++i) {
       runners.emplace_back([this, i](){ return this->apply_runner(i); });
+    }
+    for(int i = 0; i != num_communicate_runners; ++i) {
+      runners.emplace_back([this, i](){ return this->communicate_runner(i); });
     }
     for(std::thread& t: runners) {
       t.join();
@@ -279,20 +280,32 @@ private:
   device_manager_t& get_device_manager(loc_t const& loc);
 
   void from_send_to_recv_can_send(ident_t const& which) {
-    std::unique_lock lk(m);
-    recv_ready[which]++;
+    {
+      std::unique_lock lk(m);
+      recv_ready[which]++;
+    }
+    cv.notify_all();
   }
   void from_recv_to_send_can_recv(ident_t const& which) {
-    std::unique_lock lk(m);
-    send_start.push(which);
+    {
+      std::unique_lock lk(m);
+      send_start.push(which);
+    }
+    cv.notify_all();
   }
   void from_send_to_recv_started_send(ident_t const& which, char* send_ptr) {
-    std::unique_lock lk(m);
-    recv_do.push({which, send_ptr});
+    {
+      std::unique_lock lk(m);
+      recv_do.push({which, send_ptr});
+    }
+    cv.notify_all();
   }
   void from_recv_to_send_notify_complete(ident_t const& which) {
-    std::unique_lock lk(m);
-    send_complete.push(which);
+    {
+      std::unique_lock lk(m);
+      send_complete.push(which);
+    }
+    cv.notify_all();
   }
 
   void completed_command(ident_t const& which) {
@@ -362,6 +375,20 @@ struct cluster_manager_t {
 
   device_manager_t& get(loc_t loc) {
     return *devices[loc.id];
+  }
+
+  void run(int num_apply_threads, int num_communicate_threads) {
+    int const& na = num_apply_threads;
+    int const& nc = num_communicate_threads;
+    vector<std::thread> ts;
+    for(auto device_ptr: devices) {
+      ts.emplace_back([device_ptr,na,nc](){
+        device_ptr->run(na,nc);
+      });
+    }
+    for(std::thread& t: ts) {
+      t.join();
+    }
   }
 
 private:

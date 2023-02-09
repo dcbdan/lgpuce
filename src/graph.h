@@ -57,8 +57,8 @@ vector<loc_t> signal_locations(command_t const& cmd) {
 struct graph_t {
   struct info_t {
     command_t cmd;
-    vector<ident_t> parents;
-    vector<ident_t> children;
+    vector<ident_t> parents;   // TODO: use std::unordered_set
+    vector<ident_t> children;  //       for these instead of vector
   };
 
   command_t const& get_command(ident_t const& id) const {

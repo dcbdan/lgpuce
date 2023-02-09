@@ -7,9 +7,14 @@
 #include <tuple>
 #include <ostream>
 
-#include <iostream> // TODO
-
 #include "misc.h"
+
+#include <iostream> // TODO
+#define DOUT(x) std::cout << x << std::endl;
+#define DLINEOUT(x) std::cout << __LINE__ << " " << x << std::endl;
+#define DLINE DLINEOUT(' ')
+#define DLINEFILEOUT(x) std::cout << __FILE__ << " @ " << __LINE__ << ": " << x << std::endl;
+#define DLINEFILE DLINEFILEOUT(' ')
 
 using std::vector;
 using std::tuple;
@@ -70,7 +75,7 @@ std::ostream& operator<<(std::ostream& out, mem_t mem) {
 
 std::ostream& operator<<(std::ostream& out, loc_t loc) {
   //out << "loc_t { .device = <not shown>, .id = " << loc.id << " }";
-  out << loc.id;
+  out << "loc." << loc.id;
   return out;
 }
 

@@ -65,6 +65,13 @@ struct interval_lock_t {
     }
   }
 
+  void print(std::ostream& out) const {
+    out << "reading.";
+    reading.print(out);
+    out << " writing.";
+    writing.print(out);
+  }
+
 private:
   interval_chopper_t reading;
   interval_chopper_t writing;
@@ -91,4 +98,10 @@ private:
     return true;
   }
 };
+
+std::ostream& operator<<(std::ostream& out, interval_lock_t const& c) {
+  c.print(out);
+  return out;
+}
+
 

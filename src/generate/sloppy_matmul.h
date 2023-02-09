@@ -62,6 +62,11 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
       out.push_back(manager.get_memloc(out_tid));
       out_tids.push_back(out_tid);
     }}
+  } else {
+    out_tids = join;
+    for(auto const& out_tid: out_tids) {
+      out.push_back(manager.get_memloc(out_tid));
+    }
   }
 
   // Now call print the print kernels and have each output depend on the next
@@ -76,8 +81,7 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
     };
   };
 
-  graph_t graph = manager.get_graph();
-
+  graph_t& graph = manager.graph;
   auto const& [mem, ident] = manager.get_at(out_tids[0], loc0);
   ident_t prev_print = graph.insert(print_cmd(mem), {ident});
   if(out_tids.size() > 1) {

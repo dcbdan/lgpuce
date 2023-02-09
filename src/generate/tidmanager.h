@@ -81,8 +81,8 @@ struct tidmanager_t {
     return this->apply(loc, agg, inns, mem.size);
   }
 
-private:
   graph_t graph;
+private:
   vector<memorymanager_t> allocators;
 
   struct info_t {
