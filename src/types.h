@@ -21,10 +21,10 @@ using std::tuple;
 
 using ident_t = uint64_t;
 
-enum class device_t { cpu, gpu };
+enum class device_type_t { cpu, gpu };
 
 struct loc_t {
-  device_t device;
+  device_type_t device_type;
   int id;
 };
 
@@ -59,12 +59,35 @@ struct sendrecv_t {
   loc_t dst;
   mem_t src_mem;
   mem_t dst_mem;
+
+  // c = cpu
+  // g = gpu
+  // cc = cpu to cpu
+  // cg = cpu to gpu
+  // gc = gpu to cpu
+  // gg = gpu to gpu
+  bool cc() const {
+    return src.device_type == device_type_t::cpu &&
+           dst.device_type == device_type_t::cpu;
+  }
+  bool cg() const {
+    return src.device_type == device_type_t::cpu &&
+           dst.device_type == device_type_t::gpu;
+  }
+  bool gc() const {
+    return src.device_type == device_type_t::gpu &&
+           dst.device_type == device_type_t::cpu;
+  }
+  bool gg() const {
+    return src.device_type == device_type_t::gpu &&
+           dst.device_type == device_type_t::gpu;
+  }
 };
 
 using command_t = std::variant<apply_t, sendrecv_t>;
 
 bool operator==(loc_t const& lhs, loc_t const& rhs) {
-  return lhs.device == rhs.device && lhs.id == rhs.id;
+  return lhs.device_type == rhs.device_type && lhs.id == rhs.id;
 }
 
 std::ostream& operator<<(std::ostream& out, mem_t mem) {

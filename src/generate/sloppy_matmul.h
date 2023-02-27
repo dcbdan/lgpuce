@@ -26,7 +26,7 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
     for(uint64_t x = 0; x != bx; x++) {
     for(uint64_t y = 0; y != by; y++) {
       loc_t loc {
-        .device = device_t::cpu,
+        .device_type = device_type_t::cpu,
         .id = device};
       tid_t tid = manager.apply(loc, gen_ones({nd,nd}), {}, mat_size);
       ret.push_back(tid);
@@ -70,7 +70,7 @@ tuple<graph_t, vector<memloc_t>> sloppy_matmul(
   }
 
   // Now call print the print kernels and have each output depend on the next
-  loc_t loc0 = loc_t{ .device = device_t::cpu, .id = 0 };
+  loc_t loc0 = loc_t{ .device_type = device_type_t::cpu, .id = 0 };
   auto print_op = gen_print({nd,nd});
   auto print_cmd = [&](mem_t p_mem) {
     return apply_t {

@@ -2,7 +2,7 @@
 #include "src/kernels.h"
 #include "src/graph.h"
 #include "src/generate/sloppy_matmul.h"
-#include "src/execution/cpu.h"
+#include "src/execution/cluster.h"
 
 int main() {
   int num_devices = 2;
@@ -11,6 +11,6 @@ int main() {
 
   std::cout << "-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*" << std::endl;
 
-  cluster_manager_t manager(graph, num_devices);
-  manager.run(4, 1);
+  cluster_t manager(graph, num_devices, 0);
+  manager.run();
 }
