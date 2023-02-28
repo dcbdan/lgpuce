@@ -57,8 +57,8 @@ vector<loc_t> signal_locations(command_t const& cmd) {
 struct graph_t {
   struct info_t {
     command_t cmd;
-    vector<ident_t> parents;   // TODO: use std::unordered_set
-    vector<ident_t> children;  //       for these instead of vector
+    unordered_set<ident_t> parents;
+    unordered_set<ident_t> children;
   };
 
   command_t const& get_command(ident_t const& id) const {
@@ -69,13 +69,13 @@ struct graph_t {
     return get_command(id);
   }
 
-  vector<ident_t> const& get_parents(ident_t id) const {
+  unordered_set<ident_t> const& get_parents(ident_t id) const {
     return info[id].parents;
   }
 
   // A command can be executed only after children commands
   // have been completed
-  vector<ident_t> const& get_children(ident_t id) const {
+  unordered_set<ident_t> const& get_children(ident_t id) const {
     return info[id].children;
   }
 
@@ -84,11 +84,15 @@ struct graph_t {
       throw std::runtime_error("all children are location specific");
     }
     info.push_back(
-      info_t{ .cmd = command, .parents = {}, .children = children});
+      info_t{
+        .cmd = command,
+        .parents = {},
+        .children = unordered_set<ident_t>(children.begin(), children.end())
+      });
 
     ident_t ret = info.size() - 1;
     for(auto const& child: children) {
-      info[child].parents.push_back(ret);
+      info[child].parents.insert(ret);
     }
     return ret;
   }
@@ -103,7 +107,7 @@ struct graph_t {
       auto const& [cmd, _, children] = info[i];
       out << i << ": " << cmd << std::endl;
       out << "  depends on ";
-      print_vec(out, children);
+      print_set(out, children);
       out << std::endl;
     }
   }

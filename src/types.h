@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <unordered_set>
 #include <functional>
 #include <variant>
 #include <tuple>
@@ -17,6 +18,7 @@
 #define DLINEFILE DLINEFILEOUT(' ')
 
 using std::vector;
+using std::unordered_set;
 using std::tuple;
 
 using ident_t = uint64_t;

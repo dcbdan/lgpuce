@@ -24,3 +24,22 @@ void print_vec(std::ostream& out, std::vector<T> const& xs) {
     out << "]";
   }
 }
+
+template <typename T>
+void print_set(std::ostream& out, std::unordered_set<T> const& xs) {
+  if(xs.size() == 0) {
+    out << "[]";
+  } else if(xs.size() == 1) {
+    out << "[" << *xs.begin() << "]";
+  } else {
+    auto iter = xs.begin();
+    out << "[" << *iter;
+    iter++;
+    for(; iter != xs.end(); ++iter) {
+      out << "," << *iter;
+    }
+    out << "]";
+  }
+}
+
+
