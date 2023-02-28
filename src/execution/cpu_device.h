@@ -80,7 +80,7 @@ struct cpu_device_t: public device_t {
           write_intervals.push_back(mem.interval());
           write_mems.push_back(data + mem.offset);
         }
-        auto memlock = memory_lock.acquire(read_intervals, write_intervals);
+        auto memlock = memory_lock.acquire_and_correct(read_intervals, write_intervals);
         apply.op(read_mems, write_mems);
         {
           std::unique_lock lk_print(m_print);
