@@ -1,0 +1,18 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%files
+    cudnn-local-repo-ubuntu2204-8.8.0.121_1.0-1_amd64.deb /opt/cudnn.deb
+
+%post
+    dpkg -i /opt/cudnn.deb
+
+    cp /var/cudnn-local-repo-*/cudnn-local-*-keyring.gpg /usr/share/keyrings/
+    apt-get update
+    apt-get install -y zlib1g
+    apt-get install -y nvidia-cuda-toolkit libcudnn8 libcudnn8-dev libcudnn8-samples
+    apt-get install -y build-essential
+
+    rm /opt/cudnn.deb
+
+

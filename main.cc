@@ -2,6 +2,7 @@
 #include "src/kernels.h"
 #include "src/graph.h"
 #include "src/generate/sloppy_matmul.h"
+#include "src/generate/hello_gpumatmul.h"
 #include "src/execution/cluster.h"
 
 int main() {
