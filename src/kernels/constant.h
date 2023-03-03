@@ -5,7 +5,7 @@
 
 kernel_t gen_constant(vector<uint64_t> const& shape, float constant) {
   uint64_t total = uint64_product(shape);
-  return [total, constant](void**, vector<void*> const& inns, vector<void*> const& outs) {
+  return [total, constant](void*, vector<void*> const& inns, vector<void*> const& outs) {
     float* out = (float*)outs[0];
     std::fill(out, out + total, constant);
   };

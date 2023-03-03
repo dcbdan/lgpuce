@@ -6,7 +6,7 @@
 #include <iostream>
 
 kernel_t gen_print(vector<uint64_t> shape) {
-  return [shape](void**, vector<void*> const& inns, vector<void*> const& outs) {
+  return [shape](void*, vector<void*> const& inns, vector<void*> const& outs) {
     float* data = (float*)inns[0];
     std::cout << "shape";
     for(auto const& d: shape) {

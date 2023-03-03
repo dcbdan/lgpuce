@@ -8,7 +8,7 @@
 
 // ik,kj->ij
 kernel_t gen_cpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
-  return [ni,nj,nk](void**, vector<void*> const& inns, vector<void*> const& outs) {
+  return [ni,nj,nk](void*, vector<void*> const& inns, vector<void*> const& outs) {
     float* lhs = (float*)inns[0];
     float* rhs = (float*)inns[1];
     float* out = (float*)outs[0];
@@ -47,9 +47,9 @@ kernel_t gen_gpu_matmul(
   uint64_t ldc = I;
 
   return [trans_l,trans_r,I,J,KL,alpha,lda,ldb,beta,ldc]
-    (void** info, vector<void*> const& inns, vector<void*> const& outs)
+    (void* info, vector<void*> const& inns, vector<void*> const& outs)
   {
-    cublasHandle_t* handle = (cublasHandle_t*)info[0];
+    cublasHandle_t* handle = (cublasHandle_t*)info;
     float* data_lhs = (float*)inns[0];
     float* data_rhs = (float*)inns[1];
     float* data_out = (float*)outs[0];

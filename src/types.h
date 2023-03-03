@@ -46,7 +46,7 @@ using memloc_t = tuple<mem_t, loc_t>;
 using kernel_t =
   std::function<
     void(
-      void**,
+      void*,
       vector<void*> const&,
       vector<void*> const&)>;
 
