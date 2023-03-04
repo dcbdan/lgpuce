@@ -18,8 +18,8 @@ To build with singularity:
 singularity build --fakeroot container.sif container.def
 
 # build the executable
-./compile
+./compile # singularity exec <nvcc stuff>
 
 # run
-singularity exec --nv container.sif ./exp
+./run # singularity exec --nv container.sif ./exp
 ```

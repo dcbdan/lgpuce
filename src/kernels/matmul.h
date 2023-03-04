@@ -29,24 +29,24 @@ kernel_t gen_gpu_matmul(
 {
   float beta = 0.0f;
 
-  cublasOperation_t trans_l = trans_lhs ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t trans_r = trans_rhs ? CUBLAS_OP_T : CUBLAS_OP_N;
+  cublasOperation_t trans_lhs_ = trans_lhs ? CUBLAS_OP_T : CUBLAS_OP_N;
+  cublasOperation_t trans_rhs_ = trans_rhs ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  uint64_t I = trans_lhs ? lhs_n_row : lhs_n_col;
-  uint64_t J = trans_rhs ? rhs_n_col : rhs_n_row;
+  uint64_t I = trans_lhs ? lhs_n_col : lhs_n_row ;
+  uint64_t J = trans_rhs ? rhs_n_row : rhs_n_col ;
 
-  uint64_t KL = trans_lhs ? lhs_n_col : lhs_n_row;
-  uint64_t KR = trans_rhs ? rhs_n_row : rhs_n_col;
+  uint64_t KL = trans_lhs ? lhs_n_row : lhs_n_col ;
+  uint64_t KR = trans_rhs ? rhs_n_col : rhs_n_row ;
 
   if(KL != KR) {
-    throw std::runtime_error("Should not happen");
+    throw std::runtime_error("gen_gpu_matmul: KL != KR");
   }
 
   uint64_t lda = lhs_n_row;
   uint64_t ldb = rhs_n_row;
   uint64_t ldc = I;
 
-  return [trans_l,trans_r,I,J,KL,alpha,lda,ldb,beta,ldc]
+  return [trans_lhs_,trans_rhs_,I,J,KL,alpha,lda,ldb,beta,ldc]
     (void* info, vector<void*> const& inns, vector<void*> const& outs)
   {
     cublasHandle_t* handle = (cublasHandle_t*)info;
@@ -54,13 +54,13 @@ kernel_t gen_gpu_matmul(
     float* data_rhs = (float*)inns[1];
     float* data_out = (float*)outs[0];
 
-    cublasSgemm(*handle, trans_l, trans_r, I, J, KL, &alpha,
+    cublasSgemm(*handle, trans_lhs_, trans_rhs_, I, J, KL, &alpha,
                 data_lhs, lda, data_rhs, ldb, &beta, data_out, ldc);
   };
 }
 
 kernel_t gen_gpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
-  return gen_gpu_matmul(false, ni, nk, false, nj, nk, 1.0);
+  return gen_gpu_matmul(false, ni, nk, false, nk, nj, 1.0);
 }
 
 

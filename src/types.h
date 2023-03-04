@@ -10,6 +10,9 @@
 
 #include "misc.h"
 
+#include <cuda_runtime.h>
+#include "cublas_v2.h"
+
 #include <iostream> // TODO
 #define DOUT(x) std::cout << x << std::endl;
 #define DLINEOUT(x) std::cout << __LINE__ << " " << x << std::endl;
@@ -84,6 +87,20 @@ struct sendrecv_t {
   bool gg() const {
     return src.device_type == device_type_t::gpu &&
            dst.device_type == device_type_t::gpu;
+  }
+
+  cudaMemcpyKind kind() const {
+    if(cc()) {
+      return cudaMemcpyHostToHost;
+    } else if(cg()) {
+      return cudaMemcpyHostToDevice;
+    } else if(gc()) {
+      return cudaMemcpyDeviceToHost;
+    } else if(gg()) {
+      return cudaMemcpyDeviceToDevice;
+    } else {
+      throw std::runtime_error("should not reach");
+    }
   }
 };
 

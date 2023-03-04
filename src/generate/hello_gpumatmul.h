@@ -19,8 +19,8 @@ graph_t hello_gpumatmul(
   uint64_t rhs_size = sizeof(float)*nk*nj;
   uint64_t out_size = sizeof(float)*ni*nj;
 
-  loc_t cpu { .device_type = device_type_t::cpu };
-  loc_t gpu { .device_type = device_type_t::gpu };
+  loc_t cpu { .device_type = device_type_t::cpu, .id = 0 };
+  loc_t gpu { .device_type = device_type_t::gpu, .id = 0 };
 
   mem_t lhs_mem { .offset = 0,        .size = lhs_size };
   mem_t rhs_mem { .offset = lhs_size, .size = rhs_size };
