@@ -34,6 +34,7 @@ struct device_t {
       counts(g.size()), this_loc(this_loc),
       num_remaining(0)
   {
+    // TODO memory should be pinned
     if(is_cpu()) {
       memory = new char[memory_size];
     } else {
