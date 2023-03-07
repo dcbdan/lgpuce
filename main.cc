@@ -28,7 +28,6 @@ int main() {
   graph_t g = hello_3gpu(4);
   cluster_t manager = cluster_t::from_graph(g);
   manager.run(g);
-  manager.run(g);
-  manager.run(g);
+  manager.log_time_events("exp.log");
 }
 

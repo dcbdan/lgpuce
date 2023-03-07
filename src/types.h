@@ -162,4 +162,25 @@ std::ostream& operator<<(std::ostream& out, command_t const& cmd) {
   return out;
 }
 
+using time_point_t = decltype(std::chrono::high_resolution_clock::now());
 
+#define TIME_EVENTS
+
+#ifdef TIME_EVENTS
+#include <string>
+
+
+struct time_info_t {
+  time_point_t start;
+  time_point_t end;
+  std::string label;
+};
+
+//std::ostream& operator<<(std::ostream& out, time_info_t const& x) {
+//  auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(x.start - 0);
+//  auto end   = std::chrono::duration_cast<std::chrono::nanoseconds>(x.end - 0);
+//  std::cout << start.count() << "," << end.count() << "," << x.label;
+//  return out;
+//}
+
+#endif

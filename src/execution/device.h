@@ -81,12 +81,9 @@ struct device_t {
         auto memlock = memory_lock.acquire_and_correct(read_intervals, write_intervals);
         // TODO: If this is a gpu, what gpu stream is being used?
         //       And pass in the stream to the kernel somehow
-        apply.op(get_handler(), read_mems, write_mems);
         {
-          std::unique_lock lk_print(print_lock());
-          std::cout << "cmd " << which <<
-                       " @ apply runner " << runner_id << ": " <<
-                       graph->get_command(which) << std::endl;
+          auto e = time_events.log_apply(runner_id);
+          apply.op(get_handler(), read_mems, write_mems);
         }
       }
 
@@ -188,21 +185,22 @@ struct device_t {
           // 1. Grab a read lock around send_ptr
           auto memlock = memory_lock.acquire({}, {recv_interval});
           // 2. Copy into recv_ptr which should already have a write lock
-          if(cudaMemcpy((void*)recv_ptr, (void*)send_ptr, move.src_mem.size, move.kind()) != cudaSuccess) {
-            throw std::runtime_error("did not cuda memcpy");
+          {
+            auto e = time_events.log_comm(runner_id);
+            if(cudaMemcpy(
+                (void*)recv_ptr,
+                (void*)send_ptr,
+                move.src_mem.size, move.kind())
+                != cudaSuccess)
+            {
+              throw std::runtime_error("did not cuda memcpy");
+            }
           }
         }
 
         // 3. Notify complete
         auto& other_manager = get_device_at(move.src);
         other_manager.comm_from_recv_to_send_notify_complete(which);
-
-        {
-          std::unique_lock lk_print(print_lock());
-          std::cout << "cmd " << which <<
-                       " @ comm runner " << this_loc << ".id=" << runner_id << ": " <<
-                       graph->get_command(which) << std::endl;
-        }
 
         this->completed_command(which);
       } else if(action == comm_action_t::complete_send) {
@@ -260,6 +258,8 @@ struct device_t {
     int num_apply_runners,
     int num_comm_runners)
   {
+    time_events.init(num_apply_runners, num_comm_runners);
+
     vector<std::thread> runners;
     runners.reserve(num_apply_runners + num_comm_runners);
     for(int i = 0; i != num_apply_runners; ++i) {
@@ -279,6 +279,20 @@ struct device_t {
   inline bool is_gpu() const {
     return this_loc.device_type == device_type_t::gpu;
   }
+
+#ifdef TIME_EVENTS
+  void log_time_events(time_point_t const& base, std::ostream& out) const {
+    auto fix = [&base](time_point_t const& t) {
+      auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t - base);
+      return duration.count();
+    };
+    for(auto const& ts: time_events.items) {
+      for(auto const& [start,stop,label]: ts) {
+        out << fix(start) << "," << fix(stop) << "," << this_loc << "|" << label << std::endl;
+      }
+    }
+  }
+#endif
 
 private:
   cluster_t* manager;
@@ -338,6 +352,53 @@ private:
     }
 
   } comm;
+
+#ifdef TIME_EVENTS
+  struct {
+    vector<vector<time_info_t>> items;
+    int na;
+
+    void init(int num_app, int num_comm) {
+      items = vector<vector<time_info_t>>(num_app + num_comm);
+      na = num_app;
+    }
+
+    struct raii_t {
+      raii_t(vector<vector<time_info_t>>& items, std::string s, int idx):
+        items(items),
+        s(s),
+        idx(idx),
+        start(std::chrono::high_resolution_clock::now())
+      {}
+
+      ~raii_t() {
+        items[idx].push_back(time_info_t {
+          .start = start,
+          .end   = std::chrono::high_resolution_clock::now(),
+          .label = s
+        });
+      }
+
+      vector<vector<time_info_t>>& items;
+      std::string s;
+      int idx;
+      time_point_t start;
+    };
+
+    raii_t log_apply(int idx) {
+      return raii_t(items, "apply" + std::to_string(idx), idx);
+    }
+    raii_t log_comm(int idx) {
+      return raii_t(items, "comm" + std::to_string(idx), na + idx);
+    }
+  } time_events;
+#else
+  struct {
+    void init(int num_app, int num_comm) const {}
+    char log_apply(int _) const { return 'a'; };
+    char log_comm(int _) const { return 'a'; };
+  } time_events;
+#endif
 
 private:
   device_t& get_device_at(loc_t const& loc);

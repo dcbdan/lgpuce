@@ -8,6 +8,10 @@
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
 
+#ifdef TIME_EVENTS
+#include <fstream>
+#endif
+
 using device_ptr_t = std::shared_ptr<device_t>;
 
 struct setting_t {
@@ -125,7 +129,7 @@ struct cluster_t {
     }
 
     ts = vector<std::thread>();
-    auto start = std::chrono::high_resolution_clock::now();
+    start = std::chrono::high_resolution_clock::now();
 
     for(auto device_ptr: cpu_devices) {
       ts.emplace_back([device_ptr,s](){
@@ -165,6 +169,22 @@ struct cluster_t {
     return m_print;
   }
 
+#ifdef TIME_EVENTS
+  void log_time_events(std::string filename) {
+    std::ofstream out(filename.c_str());
+    for(auto ptr: cpu_devices) {
+      ptr->log_time_events(start, out);
+    }
+    for(auto ptr: gpu_devices) {
+      ptr->log_time_events(start, out);
+    }
+  }
+#else
+  void log_time_events(std::string _) {
+    std::cout << "Warning: Was not compiled with TIME_EVENTS" << std::endl;
+  }
+#endif
+
 private:
   vector<device_ptr_t> cpu_devices;
   vector<device_ptr_t> gpu_devices;
@@ -172,6 +192,8 @@ private:
   cublasHandle_t gpu_handle;
 
   std::mutex m_print;
+
+  time_point_t start;
 };
 
 device_t& device_t::get_device_at(loc_t const& loc) {
