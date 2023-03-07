@@ -7,6 +7,7 @@
 #include <variant>
 #include <tuple>
 #include <ostream>
+#include <chrono>
 
 #include "misc.h"
 
@@ -31,7 +32,15 @@ enum class device_type_t { cpu, gpu };
 struct loc_t {
   device_type_t device_type;
   int id;
+
 };
+
+loc_t make_cpu_loc(int id) {
+  return loc_t { .device_type = device_type_t::cpu, id = id };
+}
+loc_t make_gpu_loc(int id) {
+  return loc_t { .device_type = device_type_t::gpu, id = id };
+}
 
 using interval_t = tuple<uint64_t, uint64_t>;
 

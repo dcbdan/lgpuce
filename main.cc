@@ -13,20 +13,22 @@ void main01() {
 
   std::cout << "-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*" << std::endl;
 
-  cluster_t manager(graph, num_devices, 0);
-  manager.run();
+  cluster_t manager = cluster_t::from_graph(graph);
+  manager.run(graph);
 }
 
 void main02() {
   graph_t g = hello_gpumatmul(9998,9999,10000);
 
-  cluster_t manager(g, 1, 1);
-  manager.run();
+  cluster_t manager = cluster_t::from_graph(g);
+  manager.run(g);
 }
 
 int main() {
   graph_t g = hello_3gpu(4);
-  cluster_t manager(g);
-  manager.run();
+  cluster_t manager = cluster_t::from_graph(g);
+  manager.run(g);
+  manager.run(g);
+  manager.run(g);
 }
 

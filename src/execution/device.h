@@ -26,17 +26,11 @@ struct device_t {
 
   device_t(
     cluster_t* manager,
-    graph_t const& g,
     uint64_t memory_size,
-    loc_t this_loc,
-    int num_apply_runners = 4):
+    loc_t this_loc):
       manager(manager),
-      graph(g),
       memory_size(memory_size),
-      num_apply_runners(num_apply_runners),
-      num_comm_runners(1),
-      counts(g.size()), this_loc(this_loc),
-      num_remaining(0)
+      this_loc(this_loc)
   {
     if(is_cpu()) {
       memory = new char[memory_size];
@@ -52,33 +46,7 @@ struct device_t {
         throw std::runtime_error("cudaMalloc failed");
       }
     }
-
-    auto const& info = g.get_info();
-    for(int ident = 0; ident != info.size(); ++ident) {
-      auto const& [parent, _, children] = info[ident];
-      if(is_signal_location(parent, this_loc)) {
-        // This command needs to happen here!
-        num_remaining++;
-
-        int count = 0;
-        for(auto const& child_ident: children) {
-          auto const& [child, _0, _1] = info[child_ident];
-          if(is_signal_location(child, this_loc)) {
-            count++;
-          }
-        }
-        if(count == 0) {
-          set_ready(ident);
-        } else {
-          counts[ident] = count;
-        }
-      }
-    }
   }
-
-  device_t(cluster_t* manager, graph_t const& g, loc_t this_loc):
-    device_t(manager, g, g.memory_size(this_loc), this_loc)
-  {}
 
   void apply_runner(int runner_id) {
     if(is_gpu()) {
@@ -99,7 +67,7 @@ struct device_t {
 
       // Do the command execution
       {
-        apply_t const& apply = std::get<apply_t>(graph[which]);
+        apply_t const& apply = std::get<apply_t>((*graph)[which]);
         vector<interval_t> read_intervals, write_intervals;
         vector<void*> read_mems, write_mems;
         for(auto const& mem: apply.read_mems) {
@@ -118,7 +86,7 @@ struct device_t {
           std::unique_lock lk_print(print_lock());
           std::cout << "cmd " << which <<
                        " @ apply runner " << runner_id << ": " <<
-                       graph.get_command(which) << std::endl;
+                       graph->get_command(which) << std::endl;
         }
       }
 
@@ -173,7 +141,7 @@ struct device_t {
 
         lk.unlock();
 
-        sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
+        sendrecv_t const& move = std::get<sendrecv_t>((*graph)[which]);
         auto& other_manager = get_device_at(move.dst);
         other_manager.comm_from_send_to_recv_can_send(which);
       } else if(action == comm_action_t::can_recv) {
@@ -183,7 +151,7 @@ struct device_t {
 
         lk.unlock();
 
-        sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
+        sendrecv_t const& move = std::get<sendrecv_t>((*graph)[which]);
         auto& other_manager = get_device_at(move.src);
         other_manager.comm_from_recv_to_send_can_recv(which);
       } else if(action == comm_action_t::start_send) {
@@ -194,7 +162,7 @@ struct device_t {
 
         lk.unlock();
 
-        sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
+        sendrecv_t const& move = std::get<sendrecv_t>((*graph)[which]);
 
         interval_t send_interval = move.src_mem.interval();
         char* send_ptr = memory + move.src_mem.offset;
@@ -209,7 +177,7 @@ struct device_t {
 
         lk.unlock();
 
-        sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
+        sendrecv_t const& move = std::get<sendrecv_t>((*graph)[which]);
 
         interval_t recv_interval = move.dst_mem.interval();
         char* recv_ptr = memory + move.dst_mem.offset;
@@ -233,7 +201,7 @@ struct device_t {
           std::unique_lock lk_print(print_lock());
           std::cout << "cmd " << which <<
                        " @ comm runner " << this_loc << ".id=" << runner_id << ": " <<
-                       graph.get_command(which) << std::endl;
+                       graph->get_command(which) << std::endl;
         }
 
         this->completed_command(which);
@@ -244,7 +212,7 @@ struct device_t {
 
         lk.unlock();
 
-        sendrecv_t const& move = std::get<sendrecv_t>(graph[which]);
+        sendrecv_t const& move = std::get<sendrecv_t>((*graph)[which]);
 
         interval_t send_interval = move.src_mem.interval();
         memory_lock.unlock({send_interval}, {});
@@ -256,7 +224,42 @@ struct device_t {
     }
   }
 
-  void run() {
+  void prepare(graph_t const& g) {
+    graph = &g;
+    // Reset runner state management
+    num_remaining = 0;
+    counts = vector<int>(graph->size());
+    apply_ready = std::queue<int>();
+    comm.reset();
+
+    auto const& info = graph->get_info();
+    for(int ident = 0; ident != info.size(); ++ident) {
+      auto const& [parent, _, children] = info[ident];
+      if(is_signal_location(parent, this_loc)) {
+        // This command needs to happen here!
+        num_remaining++;
+
+        int count = 0;
+        for(auto const& child_ident: children) {
+          auto const& [child, _0, _1] = info[child_ident];
+          if(is_signal_location(child, this_loc)) {
+            count++;
+          }
+        }
+        if(count == 0) {
+          set_ready(ident);
+        } else {
+          counts[ident] = count;
+        }
+      }
+    }
+  }
+
+  // Assumption: prepare(graph) was called first
+  void run(
+    int num_apply_runners,
+    int num_comm_runners)
+  {
     vector<std::thread> runners;
     runners.reserve(num_apply_runners + num_comm_runners);
     for(int i = 0; i != num_apply_runners; ++i) {
@@ -279,16 +282,14 @@ struct device_t {
 
 private:
   cluster_t* manager;
-  graph_t const& graph;
   uint64_t memory_size;
+  graph_t const* graph;
 
-  int num_apply_runners;
-  int num_comm_runners;
+  loc_t this_loc;
 
   // ident to number of dependencies remaining until the command can
   // be executed
   vector<int> counts;
-  loc_t this_loc;
 
   // The total number of commands left to execute
   int num_remaining;
@@ -327,6 +328,15 @@ private:
     std::queue<tuple<int, char*>> recv_do;
     std::queue<int> send_start;
     std::queue<int> send_complete;
+
+    void reset() {
+      can_send = std::queue<int>();
+      recv_ready = std::unordered_map<int, int>();
+      recv_do = std::queue<tuple<int, char*>>();
+      send_start = std::queue<int>();
+      send_complete = std::queue<int>();
+    }
+
   } comm;
 
 private:
@@ -368,9 +378,9 @@ private:
       std::unique_lock lk(m);
 
       num_remaining--;
-      auto const& parents = graph.get_parents(which);
+      auto const& parents = graph->get_parents(which);
       for(ident_t const& parent : parents) {
-        command_t const& cmd = graph[parent];
+        command_t const& cmd = (*graph)[parent];
         if(is_signal_location(cmd, this_loc)) {
           counts[parent]--;
           if(counts[parent] == 0) {
@@ -383,7 +393,7 @@ private:
   }
 
   void set_ready(ident_t const& which) {
-    return set_ready(graph[which], which);
+    return set_ready((*graph)[which], which);
   }
 
   void set_ready(command_t const& cmd, ident_t const& which) {
