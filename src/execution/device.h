@@ -8,6 +8,8 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <sys/mman.h> // mlock, munlock
+
 struct cluster_t;
 
 struct device_t {
@@ -15,6 +17,7 @@ struct device_t {
 
   ~device_t() {
     if(is_cpu()) {
+      munlock((void*)memory, memory_size);
       delete[] memory;
     } else {
       cudaFree(memory);
@@ -29,16 +32,23 @@ struct device_t {
     int num_apply_runners = 4):
       manager(manager),
       graph(g),
+      memory_size(memory_size),
       num_apply_runners(num_apply_runners),
       num_comm_runners(1),
       counts(g.size()), this_loc(this_loc),
       num_remaining(0)
   {
-    // TODO memory should be pinned
     if(is_cpu()) {
       memory = new char[memory_size];
+      if(mlock((void*)memory, memory_size) != 0) {
+        throw std::runtime_error("mlock failed; check errno");
+      }
     } else {
-      if(cudaMalloc((void**)&memory, memory_size) != cudaSuccess) {
+      cuda_set_device(this_loc.id);
+      // TODO: cudaMallocHost is page-locked, but docs say
+      //       this might not be want you want. Should investigate
+      //       correct way to manage the big blob of memory
+      if(cudaMallocHost((void**)&memory, memory_size) != cudaSuccess) {
         throw std::runtime_error("cudaMalloc failed");
       }
     }
@@ -71,6 +81,9 @@ struct device_t {
   {}
 
   void apply_runner(int runner_id) {
+    if(is_gpu()) {
+      cuda_set_device(this_loc.id);
+    }
     int which;
     while(true) {
       // Get a command that needs to be executed, or return
@@ -102,7 +115,7 @@ struct device_t {
         //       And pass in the stream to the kernel somehow
         apply.op(get_handler(), read_mems, write_mems);
         {
-          std::unique_lock lk_print(m_print);
+          std::unique_lock lk_print(print_lock());
           std::cout << "cmd " << which <<
                        " @ apply runner " << runner_id << ": " <<
                        graph.get_command(which) << std::endl;
@@ -217,9 +230,9 @@ struct device_t {
         other_manager.comm_from_recv_to_send_notify_complete(which);
 
         {
-          std::unique_lock lk_print(m_print);
+          std::unique_lock lk_print(print_lock());
           std::cout << "cmd " << which <<
-                       " @ comm comm runner " << runner_id << ": " <<
+                       " @ comm runner " << this_loc << ".id=" << runner_id << ": " <<
                        graph.get_command(which) << std::endl;
         }
 
@@ -267,6 +280,7 @@ struct device_t {
 private:
   cluster_t* manager;
   graph_t const& graph;
+  uint64_t memory_size;
 
   int num_apply_runners;
   int num_comm_runners;
@@ -285,7 +299,7 @@ private:
   interval_lock_t memory_lock;
 
   // Concurrency management
-  std::mutex m, m_print;
+  std::mutex m;
   std::condition_variable cv;
 
   // Work for apply runners
@@ -317,6 +331,7 @@ private:
 
 private:
   device_t& get_device_at(loc_t const& loc);
+  std::mutex& print_lock();
   void* get_handler();
 
   void comm_from_send_to_recv_can_send(ident_t const& which) {

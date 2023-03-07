@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include <cuda_runtime.h>
+
 uint64_t uint64_product(std::vector<uint64_t> const& xs) {
   uint64_t total = 1;
   for(auto const& x: xs) {
@@ -42,4 +44,25 @@ void print_set(std::ostream& out, std::unordered_set<T> const& xs) {
   }
 }
 
+int cuda_get_device_count() {
+  int ret;
+  if(cudaGetDeviceCount(&ret) != cudaSuccess) {
+    throw std::runtime_error("cuda get device count");
+  }
+  return ret;
+}
+
+void cuda_set_device(int which) {
+  if(cudaSetDevice(which) != cudaSuccess) {
+    throw std::runtime_error("cuda set device");
+  }
+}
+
+int cuda_get_device() {
+  int ret;
+  if(cudaGetDevice(&ret) != cudaSuccess) {
+    throw std::runtime_error("cuda get device");
+  }
+  return ret;
+}
 

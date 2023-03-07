@@ -111,14 +111,16 @@ bool operator==(loc_t const& lhs, loc_t const& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& out, mem_t mem) {
-  //out << "mem_t { .size = " << mem.size << " }";
-  out << "mem:" << mem.offset;
+  out << "mem[" << mem.offset << "," << mem.offset + mem.size << ")";
   return out;
 }
 
 std::ostream& operator<<(std::ostream& out, loc_t loc) {
-  //out << "loc_t { .device = <not shown>, .id = " << loc.id << " }";
-  out << "loc." << loc.id;
+  if(loc.device_type == device_type_t::cpu) {
+    out << "cpu[" << loc.id << "]";
+  } else {
+    out << "gpu[" << loc.id << "]";
+  }
   return out;
 }
 

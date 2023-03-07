@@ -163,6 +163,13 @@ struct graph_t {
     return total;
   }
 
+  int num_cpus() const {
+    return num_dev_type(device_type_t::cpu);
+  }
+  int num_gpus() const {
+    return num_dev_type(device_type_t::gpu);
+  }
+
 private:
   vector<info_t> info;
 
@@ -187,5 +194,26 @@ private:
       }
     }
     return false;
+  }
+
+  int num_dev_type(device_type_t const& dd) const {
+    int ret = 0;
+    auto update = [&](loc_t const& loc) {
+      if(loc.device_type == dd) {
+        ret = std::max(loc.id, ret);
+      }
+    };
+    for(auto const& [cmd, _0, _1]: this->info) {
+      if(std::holds_alternative<apply_t>(cmd)) {
+        apply_t const& apply = std::get<apply_t>(cmd);
+        update(apply.loc);
+      } else if(std::holds_alternative<sendrecv_t>(cmd)) {
+        sendrecv_t const& move = std::get<sendrecv_t>(cmd);
+        update(move.src);
+        update(move.dst);
+      }
+    }
+
+    return ret + 1;
   }
 };

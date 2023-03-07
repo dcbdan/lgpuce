@@ -11,9 +11,23 @@
 using device_ptr_t = std::shared_ptr<device_t>;
 
 struct cluster_t {
+  cluster_t(graph_t const& g):
+    cluster_t(g, g.num_cpus(), g.num_gpus())
+  {}
+
   cluster_t(graph_t const& g, int num_cpus, int num_gpus):
     graph(g)
   {
+    if(num_gpus > cuda_get_device_count()) {
+      throw std::runtime_error("More gpus used in graph than available");
+    }
+    if(num_gpus != cuda_get_device_count()) {
+      std::cout << "Warning: not all gpus are being used" << std::endl;
+    }
+    if(num_cpus > 1) {
+      std::cout << "Warning: more than one cpu device is being used" << std::endl;
+    }
+
     cpu_devices.reserve(num_cpus);
     for(int i = 0; i != num_cpus; ++i) {
       loc_t loc { .device_type = device_type_t::cpu, .id = i };
@@ -23,10 +37,6 @@ struct cluster_t {
     if(num_gpus > 0) {
       if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
         throw std::runtime_error("gpu handle creation");
-      }
-      if(num_gpus != 1) {
-        // TODO
-        throw std::runtime_error("multiple gpus not implemented!");
       }
 
       gpu_devices.reserve(num_gpus);
@@ -93,12 +103,18 @@ struct cluster_t {
     return (void*)(&gpu_handle);
   }
 
+  std::mutex& print_lock() {
+    return m_print;
+  }
+
 private:
   graph_t const& graph;
   vector<device_ptr_t> cpu_devices;
   vector<device_ptr_t> gpu_devices;
 
   cublasHandle_t gpu_handle;
+
+  std::mutex m_print;
 };
 
 device_t& device_t::get_device_at(loc_t const& loc) {
@@ -106,4 +122,7 @@ device_t& device_t::get_device_at(loc_t const& loc) {
 }
 void* device_t::get_handler() {
   return manager->get_handler(this_loc);
+}
+std::mutex& device_t::print_lock() {
+  return manager->print_lock();
 }
