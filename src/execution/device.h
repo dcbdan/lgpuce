@@ -57,7 +57,8 @@ struct device_t {
     loc_t this_loc):
       manager(manager),
       memory_size(memory_size),
-      this_loc(this_loc)
+      this_loc(this_loc),
+      handler(this_loc)
   {
     if(is_cpu()) {
       // TODO: cudaMallocHost is page-locked, but docs say
@@ -78,7 +79,6 @@ struct device_t {
     if(is_gpu()) {
       cuda_set_device(this_loc.id);
     }
-    auto handler = init_handler();
     int which;
     while(true) {
       // Get a command that needs to be executed, or return
@@ -327,6 +327,7 @@ private:
   graph_t const* graph;
 
   loc_t this_loc;
+  handler_t handler;
 
   // ident to number of dependencies remaining until the command can
   // be executed

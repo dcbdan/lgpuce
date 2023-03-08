@@ -31,25 +31,19 @@ void main03() {
   graph_t g = hello_3gpu(4);
   cluster_t manager = cluster_t::from_graph(g);
   manager.run(g);
-  manager.log_time_events("exp.log");
+  manager.log_time_events("hello_3gpu.log");
 }
 
-int main() {
+void main04() {
   uint64_t ni = 10000;
   int num_gpus = 3;
-  int num_slots_per_gpu = 1;
-  int num_matmul_per_slot = 20;
+  int num_slots_per_gpu = 4;
+  int num_matmul_per_slot = 25;
 
   auto [init, g] = many_gpumatmul(ni, num_gpus, num_slots_per_gpu, num_matmul_per_slot);
 
   cluster_t manager = cluster_t::from_graphs({init,g});
   manager.run(init);
-
-  {
-    // just in case
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(5000ms);
-  }
 
   manager.run(g);
 
@@ -60,4 +54,8 @@ int main() {
      << "_mat" << num_matmul_per_slot
      << ".log";
   manager.log_time_events(ss.str());
+}
+
+int main() {
+  main04();
 }
