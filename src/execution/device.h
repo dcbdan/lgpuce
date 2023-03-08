@@ -111,6 +111,7 @@ struct device_t {
         {
           auto e = time_events.log_apply(runner_id);
           apply.op(handler(), read_mems, write_mems);
+          cudaDeviceSynchronize();
         }
       }
 

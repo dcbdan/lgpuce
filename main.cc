@@ -56,6 +56,71 @@ void main04() {
   manager.log_time_events(ss.str());
 }
 
+void main05() {
+  int which_gpu = 2;
+  cuda_set_device(which_gpu);
+  handler_t gpu_handle(make_gpu_loc(which_gpu));
+
+  uint64_t workspace_size = 8 * 1048576;
+  void* workspace;
+  cudaMalloc(&workspace, workspace_size);
+  cublasSetWorkspace(gpu_handle.gpu_handle, workspace, workspace_size);
+
+  uint64_t ni = 10000;
+  uint64_t nm = 20;
+
+  void* memory;
+  uint64_t mat_size = sizeof(float)*ni*ni;
+  uint64_t memory_size = mat_size*(nm + 2);
+  cudaMalloc(&memory, memory_size);
+
+  kernel_t init_op = gen_constant({ni,ni}, 1.0);
+  kernel_t op = gen_gpu_matmul(ni,ni,ni);
+  kernel_t dummy = gen_gpu_matmul(3,3,3);
+
+  vector<char> x(mat_size);
+  init_op((void*)nullptr, vector<void*>{}, vector<void*>{(void*)x.data()});
+
+  auto memory_ = [&](int i) {
+    return (void*)((char*)memory + i*mat_size);
+  };
+
+  cudaMemcpy(
+    memory_(0),
+    (void*)x.data(),
+    mat_size,
+    cudaMemcpyHostToDevice );
+  cudaMemcpy(
+    memory_(1),
+    (void*)x.data(),
+    mat_size,
+    cudaMemcpyHostToDevice );
+  cudaDeviceSynchronize();
+  //dummy(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2)});
+
+  auto now = std::chrono::high_resolution_clock::now;
+  time_point_t base = now();
+  vector<tuple<time_point_t, time_point_t>> ts;
+  for(int i = 0; i != nm; ++i) {
+    time_point_t start = now();
+    op(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2+i)});
+    cudaDeviceSynchronize();
+    time_point_t stop = now();
+    ts.emplace_back(start, stop);
+  }
+
+  auto fix = [&base](time_point_t const& t) {
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t - base);
+    return duration.count();
+  };
+  for(auto const& [b,e]: ts) {
+    std::cout << fix(b) << "," << fix(e) << "," << "gpu" << std::endl;
+  }
+
+  cudaFree(memory);
+  cudaFree(workspace);
+}
+
 int main() {
   main04();
 }
