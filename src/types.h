@@ -33,6 +33,8 @@ struct loc_t {
   device_type_t device_type;
   int id;
 
+  bool is_cpu() const { return device_type == device_type_t::cpu; }
+  bool is_gpu() const { return device_type == device_type_t::gpu; }
 };
 
 loc_t make_cpu_loc(int id) {

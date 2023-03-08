@@ -79,22 +79,10 @@ struct cluster_t {
       cpu_devices.emplace_back(new device_t(this, cpu_mem_sizes[i], loc));
     }
 
-    if(num_gpus > 0) {
-      if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
-        throw std::runtime_error("gpu handle creation");
-      }
-
-      gpu_devices.reserve(num_gpus);
-      for(int i = 0; i != num_gpus; ++i) {
-        loc_t loc { .device_type = device_type_t::gpu, .id = i };
-        gpu_devices.emplace_back(new device_t(this, gpu_mem_sizes[i], loc));
-      }
-    }
-  }
-
-  ~cluster_t() {
-    if(gpu_devices.size() > 0) {
-      cublasDestroy(gpu_handle);
+    gpu_devices.reserve(num_gpus);
+    for(int i = 0; i != num_gpus; ++i) {
+      loc_t loc { .device_type = device_type_t::gpu, .id = i };
+      gpu_devices.emplace_back(new device_t(this, gpu_mem_sizes[i], loc));
     }
   }
 
@@ -152,32 +140,22 @@ struct cluster_t {
     std::cout << "Graph execution time: " << 1e-9f * duration.count() << "s" << std::endl;
   }
 
-  void* get_handler(loc_t loc) {
-    if(loc.device_type == device_type_t::cpu) {
-      return nullptr;
-    } else {
-      return this->get_gpu_handler();
-    }
-  }
-
-  void* get_gpu_handler() {
-    // Assumption: this only gets used if num gpu devices > 0
-    return (void*)(&gpu_handle);
-  }
-
   std::mutex& print_lock() {
     return m_print;
   }
 
 #ifdef TIME_EVENTS
   void log_time_events(std::string filename) {
-    std::ofstream out(filename.c_str());
-    for(auto ptr: cpu_devices) {
-      ptr->log_time_events(start, out);
+    {
+      std::ofstream out(filename.c_str());
+      for(auto ptr: cpu_devices) {
+        ptr->log_time_events(start, out);
+      }
+      for(auto ptr: gpu_devices) {
+        ptr->log_time_events(start, out);
+      }
     }
-    for(auto ptr: gpu_devices) {
-      ptr->log_time_events(start, out);
-    }
+    std::cout << "Logged time events to " << filename << std::endl;
   }
 #else
   void log_time_events(std::string _) {
@@ -189,8 +167,6 @@ private:
   vector<device_ptr_t> cpu_devices;
   vector<device_ptr_t> gpu_devices;
 
-  cublasHandle_t gpu_handle;
-
   std::mutex m_print;
 
   time_point_t start;
@@ -198,9 +174,6 @@ private:
 
 device_t& device_t::get_device_at(loc_t const& loc) {
   return manager->get(loc);
-}
-void* device_t::get_handler() {
-  return manager->get_handler(this_loc);
 }
 std::mutex& device_t::print_lock() {
   return manager->print_lock();

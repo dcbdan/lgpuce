@@ -12,15 +12,42 @@
 
 struct cluster_t;
 
+struct handler_t {
+  handler_t(loc_t loc)
+    : is_gpu(loc.is_gpu())
+  {
+    // Note that cublasCreate creates a handle to a specific
+    // device. So make sure to call cuda_set_device before this
+    if(is_gpu) {
+      if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
+        throw std::runtime_error("gpu handle creation");
+      }
+    }
+  }
+
+  ~handler_t() {
+    if(is_gpu) {
+      cublasDestroy(gpu_handle);
+    }
+  }
+
+  void* operator()() const {
+    return (void*)(&gpu_handle);
+  }
+
+  bool is_gpu;
+  cublasHandle_t gpu_handle;
+};
+
 struct device_t {
   device_t() = delete;
 
   ~device_t() {
     if(is_cpu()) {
-      munlock((void*)memory, memory_size);
-      delete[] memory;
+      cudaFreeHost((void*)memory);
     } else {
-      cudaFree(memory);
+      cuda_set_device(this_loc.id);
+      cudaFree((void*)memory);
     }
   }
 
@@ -33,16 +60,15 @@ struct device_t {
       this_loc(this_loc)
   {
     if(is_cpu()) {
-      memory = new char[memory_size];
-      if(mlock((void*)memory, memory_size) != 0) {
-        throw std::runtime_error("mlock failed; check errno");
+      // TODO: cudaMallocHost is page-locked, but docs say
+      //       this might not be want you want. Should investigate
+      //       correct way to manage the big blob of cpu memory
+      if(cudaMallocHost((void**)&memory, memory_size) != cudaSuccess) {
+        throw std::runtime_error("cudaMallocHost failed");
       }
     } else {
       cuda_set_device(this_loc.id);
-      // TODO: cudaMallocHost is page-locked, but docs say
-      //       this might not be want you want. Should investigate
-      //       correct way to manage the big blob of memory
-      if(cudaMallocHost((void**)&memory, memory_size) != cudaSuccess) {
+      if(cudaMalloc((void**)&memory, memory_size) != cudaSuccess) {
         throw std::runtime_error("cudaMalloc failed");
       }
     }
@@ -52,6 +78,7 @@ struct device_t {
     if(is_gpu()) {
       cuda_set_device(this_loc.id);
     }
+    auto handler = init_handler();
     int which;
     while(true) {
       // Get a command that needs to be executed, or return
@@ -83,7 +110,7 @@ struct device_t {
         //       And pass in the stream to the kernel somehow
         {
           auto e = time_events.log_apply(runner_id);
-          apply.op(get_handler(), read_mems, write_mems);
+          apply.op(handler(), read_mems, write_mems);
         }
       }
 
@@ -403,7 +430,7 @@ private:
 private:
   device_t& get_device_at(loc_t const& loc);
   std::mutex& print_lock();
-  void* get_handler();
+  handler_t init_handler() { return handler_t(this_loc); }
 
   void comm_from_send_to_recv_can_send(ident_t const& which) {
     {
