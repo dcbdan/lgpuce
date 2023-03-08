@@ -12,16 +12,20 @@
 
 struct cluster_t;
 
+// A handler lives on a kernel execution thread.
+// * set the device on the thread
+// * set up cublas
+// * tell cublas to use the thread-specific stream
 struct handler_t {
   handler_t(loc_t loc)
     : is_gpu(loc.is_gpu())
   {
-    // Note that cublasCreate creates a handle to a specific
-    // device. So make sure to call cuda_set_device before this
     if(is_gpu) {
+      cuda_set_device(loc.id);
       if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
         throw std::runtime_error("gpu handle creation");
       }
+      cublasSetStream(gpu_handle, cudaStreamPerThread);
     }
   }
 
@@ -31,8 +35,14 @@ struct handler_t {
     }
   }
 
-  void* operator()() const {
+  inline void* operator()() const {
     return (void*)(&gpu_handle);
+  }
+
+  inline void synchronize() {
+    if(is_gpu) {
+      cudaStreamSynchronize(cudaStreamPerThread);
+    }
   }
 
   bool is_gpu;
@@ -46,7 +56,6 @@ struct device_t {
     if(is_cpu()) {
       cudaFreeHost((void*)memory);
     } else {
-      cuda_set_device(this_loc.id);
       cudaFree((void*)memory);
     }
   }
@@ -57,8 +66,7 @@ struct device_t {
     loc_t this_loc):
       manager(manager),
       memory_size(memory_size),
-      this_loc(this_loc),
-      handler(this_loc)
+      this_loc(this_loc)
   {
     if(is_cpu()) {
       // TODO: cudaMallocHost is page-locked, but docs say
@@ -76,9 +84,9 @@ struct device_t {
   }
 
   void apply_runner(int runner_id) {
-    if(is_gpu()) {
-      cuda_set_device(this_loc.id);
-    }
+    // This is always launched in a new thread, so set the device
+    // (this happens inside the handler constructor)
+    handler_t handler(this_loc);
     int which;
     while(true) {
       // Get a command that needs to be executed, or return
@@ -106,12 +114,10 @@ struct device_t {
           write_mems.push_back(memory + mem.offset);
         }
         auto memlock = memory_lock.acquire_and_correct(read_intervals, write_intervals);
-        // TODO: If this is a gpu, what gpu stream is being used?
-        //       And pass in the stream to the kernel somehow
         {
           auto e = time_events.log_apply(runner_id);
           apply.op(handler(), read_mems, write_mems);
-          cudaDeviceSynchronize();
+          handler.synchronize();
         }
       }
 
@@ -121,6 +127,9 @@ struct device_t {
   }
 
   void communicate_runner(int runner_id) {
+    // This is always launched in a new thread, so set the device
+    cuda_set_device(this_loc.id);
+
     comm_action_t action;
     ident_t can_recv_ident;
     while(true) {
@@ -328,7 +337,6 @@ private:
   graph_t const* graph;
 
   loc_t this_loc;
-  handler_t handler;
 
   // ident to number of dependencies remaining until the command can
   // be executed
@@ -432,7 +440,6 @@ private:
 private:
   device_t& get_device_at(loc_t const& loc);
   std::mutex& print_lock();
-  handler_t init_handler() { return handler_t(this_loc); }
 
   void comm_from_send_to_recv_can_send(ident_t const& which) {
     {

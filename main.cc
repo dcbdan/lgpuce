@@ -35,9 +35,9 @@ void main03() {
 }
 
 void main04() {
-  uint64_t ni = 10000;
+  uint64_t ni = 4000;
   int num_gpus = 3;
-  int num_slots_per_gpu = 4;
+  int num_slots_per_gpu = 8;
   int num_matmul_per_slot = 25;
 
   auto [init, g] = many_gpumatmul(ni, num_gpus, num_slots_per_gpu, num_matmul_per_slot);
@@ -45,7 +45,9 @@ void main04() {
   cluster_t manager = cluster_t::from_graphs({init,g});
   manager.run(init);
 
-  manager.run(g);
+  setting_t s;
+  s.num_gpu_apply = 1;
+  manager.run(g, s);
 
   std::stringstream ss;
   ss << "manygpumatmul_ngpu" << num_gpus
@@ -61,22 +63,16 @@ void main05() {
   cuda_set_device(which_gpu);
   handler_t gpu_handle(make_gpu_loc(which_gpu));
 
-  uint64_t workspace_size = 8 * 1048576;
-  void* workspace;
-  cudaMalloc(&workspace, workspace_size);
-  cublasSetWorkspace(gpu_handle.gpu_handle, workspace, workspace_size);
-
-  uint64_t ni = 10000;
-  uint64_t nm = 20;
+  uint64_t ni = 1000;
+  uint64_t nm = 40;
 
   void* memory;
   uint64_t mat_size = sizeof(float)*ni*ni;
-  uint64_t memory_size = mat_size*(nm + 2);
+  uint64_t memory_size = mat_size*(2*nm + 2);
   cudaMalloc(&memory, memory_size);
 
   kernel_t init_op = gen_constant({ni,ni}, 1.0);
   kernel_t op = gen_gpu_matmul(ni,ni,ni);
-  kernel_t dummy = gen_gpu_matmul(3,3,3);
 
   vector<char> x(mat_size);
   init_op((void*)nullptr, vector<void*>{}, vector<void*>{(void*)x.data()});
@@ -84,6 +80,12 @@ void main05() {
   auto memory_ = [&](int i) {
     return (void*)((char*)memory + i*mat_size);
   };
+
+  cudaStream_t stream1;
+  cudaStreamCreate(&stream1);
+
+  cudaStream_t stream2;
+  cudaStreamCreate(&stream2);
 
   cudaMemcpy(
     memory_(0),
@@ -96,29 +98,40 @@ void main05() {
     mat_size,
     cudaMemcpyHostToDevice );
   cudaDeviceSynchronize();
-  //dummy(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2)});
 
   auto now = std::chrono::high_resolution_clock::now;
   time_point_t base = now();
-  vector<tuple<time_point_t, time_point_t>> ts;
+  vector<tuple<time_point_t, time_point_t, int>> ts;
   for(int i = 0; i != nm; ++i) {
-    time_point_t start = now();
-    op(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2+i)});
-    cudaDeviceSynchronize();
-    time_point_t stop = now();
-    ts.emplace_back(start, stop);
+    time_point_t start1 = now();
+    cublasSetStream(gpu_handle.gpu_handle, stream1);
+    op(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2+2*i)});
+
+    time_point_t start2 = now();
+    cublasSetStream(gpu_handle.gpu_handle, stream2);
+    op(gpu_handle(), {memory_(0), memory_(1)}, {memory_(2+2*i + 1)});
+
+    cudaStreamSynchronize(stream1);
+    time_point_t stop1 = now();
+
+    cudaStreamSynchronize(stream2);
+    time_point_t stop2 = now();
+
+    ts.emplace_back(start1, stop1, 1);
+    ts.emplace_back(start2, stop2, 2);
   }
 
   auto fix = [&base](time_point_t const& t) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t - base);
     return duration.count();
   };
-  for(auto const& [b,e]: ts) {
-    std::cout << fix(b) << "," << fix(e) << "," << "gpu" << std::endl;
+  for(auto const& [b,e,i]: ts) {
+    std::cout << fix(b) << "," << fix(e) << "," << "s" << i << std::endl;
   }
 
   cudaFree(memory);
-  cudaFree(workspace);
+  cudaStreamDestroy(stream1);
+  cudaStreamDestroy(stream2);
 }
 
 int main() {
