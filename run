@@ -1,2 +1,11 @@
-#g++ -std=c++17 main.cc -o exp -lpthread
-singularity exec ./container.sif ./exp
+# For nvprof setup
+#   > sudo modprobe -rf nvidia_uvm nvidia_drm nvidia_modeset nvidia-vgpu-vfio nvidia
+#   > sudo modprobe nvidia NVreg_RestrictProfilingToAdminUsers=0
+#   > cat /proc/driver/nvidia/params | grep RmProfilingAdminOnly
+#   > # should get 0
+# With nvprof
+#   > singularity exec --nv container.sif nvprof --analysis-metrics -o exp.prof ./exp $@
+# 1. add not params just -o exp.prof
+# 2. just nvlink stuff: nvprof --aggregate-mode off --event-collection-mode continuous -m nvlink_total_data_transmitted,nvlink_total_data_received,nvlink_transmit_throughput,nvlink_receive_throughput -o exp.prof
+#
+singularity exec --nv container.sif ./exp $@

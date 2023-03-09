@@ -1,2 +1,1 @@
-#g++ -std=c++17 main.cc -o exp -lpthread
 singularity exec ./container.sif nvcc -std=c++17 main.cc -o exp -lcublas

@@ -84,6 +84,14 @@ struct cluster_t {
       loc_t loc { .device_type = device_type_t::gpu, .id = i };
       gpu_devices.emplace_back(new device_t(this, gpu_mem_sizes[i], loc));
     }
+
+    // Now enable gpu nvlink
+    for(int i = 0; i != num_gpus; ++i) {
+    for(int j = 0; j != num_gpus; ++j) {
+      if(i != j) {
+        cuda_device_enable_peer_access(i,j);
+      }
+    }}
   }
 
   device_t& get(loc_t loc) {

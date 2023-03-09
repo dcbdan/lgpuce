@@ -128,7 +128,8 @@ struct device_t {
 
   void communicate_runner(int runner_id) {
     // This is always launched in a new thread, so set the device
-    cuda_set_device(this_loc.id);
+    // (this happens inside the handler constructor)
+    handler_t handler(this_loc);
 
     comm_action_t action;
     ident_t can_recv_ident;
@@ -162,7 +163,6 @@ struct device_t {
             return true;
           }
         }
-
         return false;
       });
 
@@ -227,7 +227,8 @@ struct device_t {
             if(cudaMemcpy(
                 (void*)recv_ptr,
                 (void*)send_ptr,
-                move.src_mem.size, move.kind())
+                move.src_mem.size,
+                cudaMemcpyDefault)
                 != cudaSuccess)
             {
               throw std::runtime_error("did not cuda memcpy");

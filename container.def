@@ -12,6 +12,7 @@ From: ubuntu:22.04
     apt-get install -y zlib1g
     apt-get install -y nvidia-cuda-toolkit libcudnn8 libcudnn8-dev libcudnn8-samples
     apt-get install -y build-essential
+    apt-get install -y nvidia-visual-profiler
 
     rm /opt/cudnn.deb
 

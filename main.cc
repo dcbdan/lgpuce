@@ -6,8 +6,10 @@
 #include "src/generate/hello_3gpu.h"
 #include "src/generate/many_gpumatmul.h"
 #include "src/execution/cluster.h"
+#include "src/generate/hello_gpumove.h"
 
 #include <sstream>
+#include <cstdlib>
 
 void main01() {
   int num_devices = 2;
@@ -28,7 +30,7 @@ void main02() {
 }
 
 void main03() {
-  graph_t g = hello_3gpu(4);
+  graph_t g = hello_3gpu(10000);
   cluster_t manager = cluster_t::from_graph(g);
   manager.run(g);
   manager.log_time_events("hello_3gpu.log");
@@ -134,6 +136,70 @@ void main05() {
   cudaStreamDestroy(stream2);
 }
 
-int main() {
-  main04();
+void main06(int argc, char** argv)
+{
+  uint64_t size = sizeof(float)*10000*10000;
+  int n_gpu  = 3;
+  int n_blob = atoi(argv[1]);
+  int n_move = atoi(argv[2]);
+  std::cout << "n_blob " << n_blob << std::endl;
+  std::cout << "n_move " << n_move << std::endl;
+
+  graph_t g = hello_gpumove(size, n_gpu, n_blob, n_move);
+
+  cluster_t manager = cluster_t::from_graph(g);
+
+  setting_t s;
+  s.num_gpu_comm = 2;
+  manager.run(g, s);
+
+  std::stringstream ss;
+  ss << "hello_gpumove" << n_gpu
+     << "_sz" << size
+     << "_bl" << n_blob
+     << "_mv" << n_move
+     << ".log";
+  //manager.log_time_events(ss.str());
+  manager.log_time_events("move.log");
+}
+
+void main07() {
+  uint64_t GiB = 1 << 30;
+  uint64_t sz = 6*GiB;
+  std::cout << sz << std::endl;
+  void* memory0;
+  void* memory1;
+
+  // Note: if you don't enable peer access, nvlink isn't used
+
+  cudaSetDevice(0);
+  cudaDeviceEnablePeerAccess(1, 0);
+  cudaMalloc(&memory0, sz);
+  std::cout << __LINE__ << std::endl;
+
+  cudaSetDevice(1);
+  cudaDeviceEnablePeerAccess(0, 0);
+  cudaMalloc(&memory1, sz);
+  std::cout << __LINE__ << std::endl;
+
+  cudaMemcpy(memory0, memory1, sz, cudaMemcpyDefault);
+  std::cout << __LINE__ << std::endl;
+
+  cudaDeviceSynchronize();
+  std::cout << __LINE__ << std::endl;
+
+  cudaSetDevice(0);
+  cudaFree(memory0);
+  std::cout << __LINE__ << std::endl;
+
+  cudaSetDevice(1);
+  cudaFree(memory1);
+  std::cout << __LINE__ << std::endl;
+}
+
+int main(int argc, char** argv){
+  main06(argc, argv);
+  //main03();
+  //main02();
+  //main07();
 }
