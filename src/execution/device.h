@@ -223,16 +223,20 @@ struct device_t {
           auto memlock = memory_lock.acquire({}, {recv_interval});
           // 2. Copy into recv_ptr which should already have a write lock
           {
+            //
+
             auto e = time_events.log_comm(runner_id);
-            if(cudaMemcpy(
+            if(cudaMemcpyAsync(
                 (void*)recv_ptr,
                 (void*)send_ptr,
                 move.src_mem.size,
-                cudaMemcpyDefault)
+                cudaMemcpyDefault,
+                cudaStreamPerThread)
                 != cudaSuccess)
             {
               throw std::runtime_error("did not cuda memcpy");
             }
+            cudaStreamSynchronize(cudaStreamPerThread);
           }
         }
 

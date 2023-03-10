@@ -3,9 +3,23 @@
 #   > sudo modprobe nvidia NVreg_RestrictProfilingToAdminUsers=0
 #   > cat /proc/driver/nvidia/params | grep RmProfilingAdminOnly
 #   > # should get 0
-# With nvprof
-#   > singularity exec --nv container.sif nvprof --analysis-metrics -o exp.prof ./exp $@
-# 1. add not params just -o exp.prof
-# 2. just nvlink stuff: nvprof --aggregate-mode off --event-collection-mode continuous -m nvlink_total_data_transmitted,nvlink_total_data_received,nvlink_transmit_throughput,nvlink_receive_throughput -o exp.prof
-#
-singularity exec --nv container.sif ./exp $@
+PROF=$1
+shift
+if [[ "$PROF" = "timeline" ]]
+then
+  PROFFILE=$1
+  shift
+  singularity exec --nv container.sif nvprof -o $PROFFILE ./exp $@
+elif [[ "$PROF" = "nvlink" ]]
+then
+  PROFFILE=$1
+  shift
+  singularity exec --nv container.sif nvprof --aggregate-mode off --event-collection-mode continuous -m nvlink_total_data_transmitted,nvlink_total_data_received,nvlink_transmit_throughput,nvlink_receive_throughput -o $PROFFILE ./exp $@
+elif [[ $PROF = "none" ]]
+then
+  singularity exec --nv container.sif ./exp $@
+else
+  echo "Must provide timeline|nvlink|none"
+  exit 1
+fi
+

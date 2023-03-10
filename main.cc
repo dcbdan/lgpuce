@@ -7,6 +7,7 @@
 #include "src/generate/many_gpumatmul.h"
 #include "src/execution/cluster.h"
 #include "src/generate/hello_gpumove.h"
+#include "src/generate/gpumove_nodepend.h"
 
 #include <sstream>
 #include <cstdlib>
@@ -138,19 +139,27 @@ void main05() {
 
 void main06(int argc, char** argv)
 {
+  if(argc < 3) {
+    throw std::runtime_error("Must supply arguments");
+  }
+
   uint64_t size = sizeof(float)*10000*10000;
   int n_gpu  = 3;
   int n_blob = atoi(argv[1]);
   int n_move = atoi(argv[2]);
-  std::cout << "n_blob " << n_blob << std::endl;
-  std::cout << "n_move " << n_move << std::endl;
+  setting_t s;
+  if(argc >= 4) {
+    s.num_gpu_comm = atoi(argv[3]);
+  }
+
+  std::cout << "n_blob  " << n_blob << std::endl;
+  std::cout << "n_move  " << n_move << std::endl;
+  std::cout << "n_comm  " << s.num_gpu_comm << std::endl;
 
   graph_t g = hello_gpumove(size, n_gpu, n_blob, n_move);
 
   cluster_t manager = cluster_t::from_graph(g);
 
-  setting_t s;
-  s.num_gpu_comm = 2;
   manager.run(g, s);
 
   std::stringstream ss;
@@ -197,9 +206,49 @@ void main07() {
   std::cout << __LINE__ << std::endl;
 }
 
+void main08(int argc, char** argv) {
+  using namespace std::chrono_literals;
+
+  if(argc < 1) {
+    throw std::runtime_error("Must supply num_gpu_comm");
+  }
+
+  setting_t s;
+  s.num_gpu_comm = atoi(argv[1]);
+  std::cout << "num_gpu_comm " << s.num_gpu_comm << std::endl;
+
+  uint64_t GiB = 1 << 30;
+  uint64_t sz = 1*GiB;
+
+  auto gen_graph = [sz](int a, int b, int n) {
+    vector<tuple<int, int, uint64_t>> moves;
+    for(int i = 0; i != n; ++i) {
+      moves.emplace_back(a, b, sz);
+      moves.emplace_back(b, a, sz);
+    }
+    return gpumove_nodepend(moves);
+  };
+
+  int n01 = 1;
+  int n02 = 1;
+  int n12 = 2;
+  vector<graph_t> gs { gen_graph(0, 1, n01), gen_graph(0, 2, n02), gen_graph(1, 2, n12) };
+  cluster_t manager = cluster_t::from_graphs(gs);
+
+  // just to wake it up
+  manager.run(gs[0]);
+  std::this_thread::sleep_for(500ms);
+
+  std::cout << "---------------" << std::endl;
+  for(auto const& g : gs) {
+    manager.run(g);
+  }
+}
+
 int main(int argc, char** argv){
-  main06(argc, argv);
+  //main06(argc, argv);
   //main03();
   //main02();
   //main07();
+  main08(argc, argv);
 }
