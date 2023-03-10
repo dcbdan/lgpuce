@@ -101,7 +101,7 @@ struct graph_t {
     return this->insert(command, {});
   }
 
-  void print(std::ostream& out) {
+  void print(std::ostream& out) const {
     out << "--- graph_t print ---"  << std::endl;
     for(uint64_t i = 0; i != info.size(); ++i) {
       auto const& [cmd, _, children] = info[i];
@@ -197,7 +197,7 @@ private:
   }
 
   int num_dev_type(device_type_t const& dd) const {
-    int ret = 0;
+    int ret = -1;
     auto update = [&](loc_t const& loc) {
       if(loc.device_type == dd) {
         ret = std::max(loc.id, ret);

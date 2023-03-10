@@ -17,20 +17,22 @@ struct cluster_t;
 // * set up cublas
 // * tell cublas to use the thread-specific stream
 struct handler_t {
-  handler_t(loc_t loc)
-    : is_gpu(loc.is_gpu())
+  handler_t(loc_t loc, bool set_cublas)
+    : is_gpu(loc.is_gpu()), set_cublas(set_cublas)
   {
     if(is_gpu) {
       cuda_set_device(loc.id);
-      if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
-        throw std::runtime_error("gpu handle creation");
+      if(set_cublas) {
+        if(cublasCreate(&gpu_handle) != CUBLAS_STATUS_SUCCESS){
+          throw std::runtime_error("gpu handle creation");
+        }
+        cublasSetStream(gpu_handle, cudaStreamPerThread);
       }
-      cublasSetStream(gpu_handle, cudaStreamPerThread);
     }
   }
 
   ~handler_t() {
-    if(is_gpu) {
+    if(is_gpu && set_cublas) {
       cublasDestroy(gpu_handle);
     }
   }
@@ -46,6 +48,7 @@ struct handler_t {
   }
 
   bool is_gpu;
+  bool set_cublas;
   cublasHandle_t gpu_handle;
 };
 
@@ -69,9 +72,6 @@ struct device_t {
       this_loc(this_loc)
   {
     if(is_cpu()) {
-      // TODO: cudaMallocHost is page-locked, but docs say
-      //       this might not be want you want. Should investigate
-      //       correct way to manage the big blob of cpu memory
       if(cudaMallocHost((void**)&memory, memory_size) != cudaSuccess) {
         throw std::runtime_error("cudaMallocHost failed");
       }
@@ -86,7 +86,7 @@ struct device_t {
   void apply_runner(int runner_id) {
     // This is always launched in a new thread, so set the device
     // (this happens inside the handler constructor)
-    handler_t handler(this_loc);
+    handler_t handler(this_loc, true);
     int which;
     while(true) {
       // Get a command that needs to be executed, or return
@@ -129,7 +129,7 @@ struct device_t {
   void communicate_runner(int runner_id) {
     // This is always launched in a new thread, so set the device
     // (this happens inside the handler constructor)
-    handler_t handler(this_loc);
+    handler_t handler(this_loc, false);
 
     comm_action_t action;
     ident_t can_recv_ident;
@@ -217,14 +217,10 @@ struct device_t {
         char* recv_ptr = memory + move.dst_mem.offset;
 
         {
-          // TODO: what about cuda streams?
-
-          // 1. Grab a read lock around send_ptr
+          // 1. Grab a read lock around recv_ptr
           auto memlock = memory_lock.acquire({}, {recv_interval});
-          // 2. Copy into recv_ptr which should already have a write lock
+          // 2. Copy from send_ptr which should already have a write lock
           {
-            //
-
             auto e = time_events.log_comm(runner_id);
             if(cudaMemcpyAsync(
                 (void*)recv_ptr,
@@ -236,7 +232,7 @@ struct device_t {
             {
               throw std::runtime_error("did not cuda memcpy");
             }
-            cudaStreamSynchronize(cudaStreamPerThread);
+            handler.synchronize();
           }
         }
 
@@ -373,23 +369,23 @@ private:
   //                    (graph write lock; do copy; release write lock)
   // 4. (notes sender)  (release read lock)            [complete_send]
   enum class comm_action_t { shutdown,
-                           can_send,
-                           can_recv,
-                           start_send,
-                           do_recv,
-                           complete_send  };
+                             can_send,
+                             can_recv,
+                             start_send,
+                             do_recv,
+                             complete_send  };
   struct {
-    std::queue<int> can_send;
-    std::unordered_map<int, int> recv_ready;
+    std::queue<int>               can_send;
+    std::unordered_map<int, int>  recv_ready;
     std::queue<tuple<int, char*>> recv_do;
-    std::queue<int> send_start;
-    std::queue<int> send_complete;
+    std::queue<int>               send_start;
+    std::queue<int>               send_complete;
 
     void reset() {
-      can_send = std::queue<int>();
-      recv_ready = std::unordered_map<int, int>();
-      recv_do = std::queue<tuple<int, char*>>();
-      send_start = std::queue<int>();
+      can_send      = std::queue<int>();
+      recv_ready    = std::unordered_map<int, int>();
+      recv_do       = std::queue<tuple<int, char*>>();
+      send_start    = std::queue<int>();
       send_complete = std::queue<int>();
     }
 

@@ -64,7 +64,7 @@ void main04() {
 void main05() {
   int which_gpu = 2;
   cuda_set_device(which_gpu);
-  handler_t gpu_handle(make_gpu_loc(which_gpu));
+  handler_t gpu_handle(make_gpu_loc(which_gpu), true);
 
   uint64_t ni = 1000;
   uint64_t nm = 40;
@@ -214,7 +214,10 @@ void main08(int argc, char** argv) {
   }
 
   setting_t s;
-  s.num_gpu_comm = atoi(argv[1]);
+  s.num_cpu_apply = 0;
+  s.num_cpu_comm  = 0;
+  s.num_gpu_apply = 0;
+  s.num_gpu_comm  = atoi(argv[1]);
   std::cout << "num_gpu_comm " << s.num_gpu_comm << std::endl;
 
   uint64_t GiB = 1 << 30;
@@ -235,14 +238,63 @@ void main08(int argc, char** argv) {
   vector<graph_t> gs { gen_graph(0, 1, n01), gen_graph(0, 2, n02), gen_graph(1, 2, n12) };
   cluster_t manager = cluster_t::from_graphs(gs);
 
-  // just to wake it up
-  manager.run(gs[0]);
-  std::this_thread::sleep_for(500ms);
-
-  std::cout << "---------------" << std::endl;
   for(auto const& g : gs) {
-    manager.run(g);
+    manager.run(g, s);
   }
+}
+
+void main09() {
+  uint64_t GiB = 1 << 30;
+
+  // Enable gpu nvlink
+  int num_gpus = 3;
+  for(int i = 0; i != num_gpus; ++i) {
+  for(int j = 0; j != num_gpus; ++j) {
+    if(i != j) {
+      cuda_device_enable_peer_access(i,j);
+    }
+  }}
+
+  int d0 = 1;
+  int d1 = 2;
+
+  // Target: get overlap in send and recv
+  cudaSetDevice(d0);
+  void* m0_a;
+  void* m0_b;
+  cudaMalloc(&m0_a, GiB);
+  cudaMalloc(&m0_b, GiB);
+
+  cudaSetDevice(d1);
+  void* m1_a;
+  void* m1_b;
+  cudaMalloc(&m1_a, GiB);
+  cudaMalloc(&m1_b, GiB);
+
+  cudaSetDevice(d0);
+  cudaDeviceSynchronize();
+  cudaSetDevice(d1);
+  cudaDeviceSynchronize();
+
+  for(int i = 0; i != 2; ++i) {
+    auto now = std::chrono::high_resolution_clock::now;
+    time_point_t start = now();
+    cudaSetDevice(d1);
+    cudaMemcpyAsync(m1_a, m0_a, GiB, cudaMemcpyDefault, cudaStreamPerThread);
+    cudaSetDevice(d0);
+    cudaMemcpyAsync(m0_b, m1_b, GiB, cudaMemcpyDefault, cudaStreamPerThread);
+
+    cudaSetDevice(d0);
+    cudaDeviceSynchronize();
+    cudaSetDevice(d1);
+    cudaDeviceSynchronize();
+
+    time_point_t stop = now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    std::cout << "Execution time: " << 1e-9f * duration.count() << "s" << std::endl;
+  }
+
 }
 
 int main(int argc, char** argv){
@@ -251,4 +303,5 @@ int main(int argc, char** argv){
   //main02();
   //main07();
   main08(argc, argv);
+  //main09();
 }
