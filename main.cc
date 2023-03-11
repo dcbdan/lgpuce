@@ -5,7 +5,7 @@
 #include "src/generate/hello_gpumatmul.h"
 #include "src/generate/hello_3gpu.h"
 #include "src/generate/many_gpumatmul.h"
-#include "src/execution/cluster.h"
+#include "src/execute/cluster.h"
 #include "src/generate/hello_gpumove.h"
 #include "src/generate/gpumove_nodepend.h"
 

@@ -11,9 +11,6 @@
 
 #include "misc.h"
 
-#include <cuda_runtime.h>
-#include "cublas_v2.h"
-
 #include <iostream> // TODO
 #define DOUT(x) std::cout << x << std::endl;
 #define DLINEOUT(x) std::cout << __LINE__ << " " << x << std::endl;
@@ -99,20 +96,6 @@ struct sendrecv_t {
     return src.device_type == device_type_t::gpu &&
            dst.device_type == device_type_t::gpu;
   }
-
-  cudaMemcpyKind kind() const {
-    if(cc()) {
-      return cudaMemcpyHostToHost;
-    } else if(cg()) {
-      return cudaMemcpyHostToDevice;
-    } else if(gc()) {
-      return cudaMemcpyDeviceToHost;
-    } else if(gg()) {
-      return cudaMemcpyDeviceToDevice;
-    } else {
-      throw std::runtime_error("should not reach");
-    }
-  }
 };
 
 using command_t = std::variant<apply_t, sendrecv_t>;
@@ -177,12 +160,5 @@ struct time_info_t {
   time_point_t end;
   std::string label;
 };
-
-//std::ostream& operator<<(std::ostream& out, time_info_t const& x) {
-//  auto start = std::chrono::duration_cast<std::chrono::nanoseconds>(x.start - 0);
-//  auto end   = std::chrono::duration_cast<std::chrono::nanoseconds>(x.end - 0);
-//  std::cout << start.count() << "," << end.count() << "," << x.label;
-//  return out;
-//}
 
 #endif

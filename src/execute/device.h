@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../graph.h"
+#include "../misc_cuda.h"
+
 #include "interval_lock.h"
 
 #include <queue>
