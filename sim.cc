@@ -87,9 +87,9 @@ int main() {
 
   uint64_t size = sizeof(float)*10000*10000;
   int n_gpu  = 3;
-  int n_blob = 1;
-  int n_move = 10;
+  int n_blob = 4;
+  int n_move = 3;
   graph_t graph = hello_gpumove(size, n_gpu, n_blob, n_move);
 
-  std::cout << simulate(cluster, graph) << std::endl;
+  std::cout << simulate(cluster, graph, true) << std::endl;
 }

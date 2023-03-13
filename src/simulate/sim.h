@@ -2,6 +2,7 @@
 
 #include <queue>
 #include <functional> // std::greater
+#include <sstream>
 
 #include "../types.h"
 #include "../graph.h"
@@ -71,10 +72,11 @@ struct _cluster_worker_to_index {
 };
 
 struct sim_manager_t {
-  sim_manager_t(sim::cluster_t const& cluster, graph_t const& graph):
+  sim_manager_t(sim::cluster_t const& cluster, graph_t const& graph, bool do_log):
     _time(0.0), graph(graph), num_remaining(graph.size()),
     info(graph.size()),
-    workers(cluster.num_devices() + cluster.num_connections())
+    workers(cluster.num_devices() + cluster.num_connections()),
+    do_log(do_log)
   {
     _cluster_worker_to_index to_index;
 
@@ -121,9 +123,16 @@ struct sim_manager_t {
 
     for(auto const& kv : to_index.connection_to_worker) {
       workers[kv.second].current_capacity = 1;
+      auto const& [src,dst] = kv.first;
+      std::stringstream ss;
+      ss << src << "->" << dst << "_";
+      workers[kv.second].label = ss.str();
     }
     for(auto const& kv : to_index.device_to_worker) {
       workers[kv.second].current_capacity = cluster.device_capacity(kv.first);
+      std::stringstream ss;
+      ss << kv.first << "_";
+      workers[kv.second].label = ss.str();
     }
 
     memory_usage.resize(to_index.n);
@@ -147,6 +156,8 @@ struct sim_manager_t {
     // Now that this op is finished, this worker has this much
     // more capacity
     workers[worker_id].current_capacity += op_info.required_capacity;
+    // And the number ops this worker is running is one less
+    workers[worker_id].num_busy -= 1;
 
     // Don't take up this memory any more
     unlock_memory(op_info.read_mems, op_info.write_mems);
@@ -178,6 +189,13 @@ struct sim_manager_t {
     }
   }
 
+  vector<tuple<float, float, std::string>> const& get_log() const {
+    if(!do_log) {
+      throw std::runtime_error("log was not set");
+    }
+    return log;
+  }
+
 private:
   float _time;
 
@@ -207,12 +225,19 @@ private:
   vector<info_t> info;
 
   struct worker_info_t {
+    worker_info_t(): num_busy(0) {}
+
     unordered_set<ident_t> ready;
     int current_capacity;
+    int num_busy; // the number of ops being run by this worker
+    std::string label;
   };
   vector<worker_info_t> workers;
 
   vector<interval_chopper_t> memory_usage;
+
+  vector<tuple<float, float, std::string>> log;
+  bool do_log;
 
 private:
   void unlock_memory(
@@ -281,9 +306,15 @@ private:
     worker.ready.erase(iter);
     info_t const& ready_info = info[op];
 
-    in_progress.push({current_time() + ready_info.cost, op, ready_info.which_worker});
+    float beg = current_time();
+    float end = beg + ready_info.cost;
+    in_progress.push({end, op, ready_info.which_worker});
 
     worker.current_capacity -= ready_info.required_capacity;
+    worker.num_busy += 1;
+    if(do_log) {
+      log.emplace_back(beg, end, worker.label + std::to_string(worker.num_busy));
+    }
     lock_memory(ready_info.read_mems, ready_info.write_mems);
 
     return true;
@@ -293,13 +324,20 @@ private:
 }
 
 // Return the estimate time in seconds to run the graph computation
-float simulate(sim::cluster_t const& cluster, graph_t const& graph) {
+float simulate(sim::cluster_t const& cluster, graph_t const& graph, bool log = false) {
   if(graph.size() == 0) {
     return 0.0;
   }
 
-  _simulate_impl::sim_manager_t manager(cluster, graph);
+  _simulate_impl::sim_manager_t manager(cluster, graph, log);
   while(manager.step()) {}
   manager.verify_all_done();
+
+  if(log) {
+    for(auto const& [beg,end,label]: manager.get_log()) {
+      std::cout << beg << "," << end << "," << label << std::endl;
+    }
+  }
+
   return manager.current_time();
 }
