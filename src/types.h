@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 #include <functional>
 #include <variant>
 #include <tuple>
@@ -20,6 +21,7 @@
 
 using std::vector;
 using std::unordered_set;
+using std::unordered_map;
 using std::tuple;
 
 using ident_t = uint64_t;
@@ -162,3 +164,37 @@ struct time_info_t {
 };
 
 #endif
+
+// Stolen from http://myeyesareblind.com/2017/02/06/Combine-hash-values/
+// where this is the boost implementation
+inline void hash_combine_impl(std::size_t& seed, std::size_t value)
+{
+    seed ^= value + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
+
+
+template <> struct std::hash<loc_t> {
+  inline std::size_t operator()(loc_t const& l) const
+  {
+    std::size_t ret = h_char(char(l.device_type));
+    hash_combine_impl(ret, h_int(l.id));
+    return ret;
+  }
+
+private:
+  std::hash<char> h_char;
+  std::hash<int> h_int;
+};
+
+template <typename T1, typename T2> struct std::hash<tuple<T1, T2>> {
+  inline std::size_t operator()(tuple<T1, T2> const& t) const
+  {
+    auto const& [t1, t2] = t;
+    std::size_t ret = h1(t1);
+    hash_combine_impl(ret, h2(t2));
+    return ret;
+  }
+private:
+  std::hash<T1> h1;
+  std::hash<T2> h2;
+};

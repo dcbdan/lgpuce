@@ -79,6 +79,14 @@ struct graph_t {
     return info[id].children;
   }
 
+  int num_children(ident_t id) const {
+    return get_children(id).size();
+  }
+
+  int num_parents(ident_t id) const {
+    return get_parents(id).size();
+  }
+
   ident_t insert(command_t command, vector<ident_t> const& children) {
     if(!valid_children(command, children)) {
       throw std::runtime_error("all children are location specific");
@@ -109,21 +117,6 @@ struct graph_t {
       out << "  depends on ";
       print_set(out, children);
       out << std::endl;
-    }
-  }
-
-  vector<int> loc_dependencies(loc_t loc) const {
-    vector<int> ret(info.size(), 0);
-    for(auto const& [cmd, _, children]: info) {
-      if(std::holds_alternative<apply_t>(cmd)) {
-        apply_t const& apply = std::get<apply_t>(cmd);
-        //
-      } else if(std::holds_alternative<sendrecv_t>(cmd)) {
-        sendrecv_t const& move = std::get<sendrecv_t>(cmd);
-        //
-      } else {
-        throw std::runtime_error("should not reach");
-      }
     }
   }
 

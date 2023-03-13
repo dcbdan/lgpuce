@@ -33,18 +33,14 @@ struct interval_lock_t {
   }
 
   raii_lock_t acquire_and_correct(
-    vector<interval_t>& read, vector<interval_t>& write)
+    vector<interval_t> const& read_overlap, vector<interval_t> const& write_overlap)
   {
-    // TODO:
     // It should be the case that all read and write intervals are disjoint.
     // However, the read and write poritions of an apply op need not be disjoint.
     // For instance, x := x + y would have x as read, x as write and y as read.
-    // For the purposes of locks, locking x and both read and write would
+    // For the purposes of locks, locking x for both read and write would
     // break everything. Instead, it should just be x write, y read
-    //
-    // This functions should modify the read and write vectors so that
-    // any regions used in both write and read only ends up in write
-    // and so that all the intervals are disjoint.
+    auto [read, write] = disjointify(read_overlap, write_overlap);
     return raii_lock_t(read, write, this);
   }
 

@@ -36,6 +36,10 @@ struct interval_chopper_t {
     do_it(interval, [](int& v){ v--; });
   }
 
+  void set(interval_t const& interval, int new_val) {
+    do_it(interval, [new_val](int& v){ v = new_val; });
+  }
+
   bool is_zero(interval_t const& interval) const {
     for(auto const& [beg,end,_]: info) {
       if(!disjoint({beg,end}, interval)) {
@@ -56,7 +60,6 @@ struct interval_chopper_t {
     }
   }
 
-private:
   struct info_t {
     info_t(interval_t const& interval):
       info_t(interval, 0)
@@ -72,6 +75,10 @@ private:
     uint64_t end;
     int      cnt;
   };
+
+  vector<info_t> const& get_info() const { return info; }
+
+private:
   using iter_t = vector<info_t>::iterator;
 
   // The invariant: info is always sorted,
@@ -204,6 +211,56 @@ std::ostream& operator<<(std::ostream& out, interval_chopper_t const& c) {
   c.print(out);
   return out;
 }
+
+void disjointify_inplace(
+  vector<interval_t> const& read_inn,
+  vector<interval_t> const& write_inn,
+  vector<interval_t>&       read,
+  vector<interval_t>&       write)
+{
+  interval_chopper_t chopper;
+
+  // First, set all the read regions to a value
+  // 1, representing read
+  for(auto const& i : read_inn) {
+    chopper.set(i, 1);
+  }
+
+  // Then set all the write regions to a value of
+  // 2, representing read. Anything read region that is read
+  // and write should contain 2.
+  for(auto const& i : write) {
+    chopper.set(i, 2);
+  }
+
+  // Now get the disjoint non-zero intervals in chopper
+  // that represent read or write.
+  for(auto const& [beg,end,cnt] : chopper.get_info()) {
+    if(cnt == 1) {
+      read.emplace_back(beg, end);
+    } else if(cnt == 2) {
+      write.emplace_back(beg, end);
+    } else {
+      throw std::runtime_error("should not happen: disjointify in place");
+    }
+  }
+}
+
+tuple<vector<interval_t>, vector<interval_t>> disjointify(
+  vector<interval_t> const& read_inn,
+  vector<interval_t> const& write_inn)
+{
+  vector<interval_t> read;
+  vector<interval_t> write;
+
+  read.reserve(read_inn.size() + write_inn.size());
+  write.reserve(read_inn.size() + write_inn.size());
+
+  disjointify_inplace(read_inn, write_inn, read, write);
+
+  return {read, write};
+}
+
 
 // void tester(vector<interval_t> xs, vector<interval_t> ys) {
 //   interval_chopper_t chopper;
