@@ -8,6 +8,7 @@
 #include "src/execute/cluster.h"
 #include "src/generate/hello_gpumove.h"
 #include "src/generate/gpumove_nodepend.h"
+#include "src/generate/inplace_add.h"
 
 #include <sstream>
 #include <cstdlib>
@@ -74,8 +75,8 @@ void main05() {
   uint64_t memory_size = mat_size*(2*nm + 2);
   cudaMalloc(&memory, memory_size);
 
-  kernel_t init_op = gen_constant({ni,ni}, 1.0);
-  kernel_t op = gen_gpu_matmul(ni,ni,ni);
+  kernel_t::op_t init_op = gen_constant({ni,ni}, 1.0).op;
+  kernel_t::op_t op = gen_gpu_matmul(ni,ni,ni).op;
 
   vector<char> x(mat_size);
   init_op((void*)nullptr, vector<void*>{}, vector<void*>{(void*)x.data()});
@@ -297,11 +298,27 @@ void main09() {
 
 }
 
+void main10(int argc, char** argv) {
+  int n_elem = atoi(argv[1]);
+  int n_add = atoi(argv[2]);
+
+  auto [g_init, g_inplace, g_at_once] = inplace_add(n_elem, n_add);
+
+  cluster_t manager = cluster_t::from_graphs({g_init, g_inplace, g_at_once});
+
+  manager.run(g_init);
+  manager.run(g_inplace);
+
+  manager.run(g_init);
+  manager.run(g_at_once);
+}
+
 int main(int argc, char** argv){
   //main06(argc, argv);
   //main03();
   //main02();
   //main07();
-  main08(argc, argv);
+  //main08(argc, argv);
   //main09();
+  main10(argc, argv);
 }
