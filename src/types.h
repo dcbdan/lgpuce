@@ -56,12 +56,24 @@ struct mem_t {
 
 using memloc_t = tuple<mem_t, loc_t>;
 
-using kernel_t =
-  std::function<
-    void(
-      void*,
-      vector<void*> const&,
-      vector<void*> const&)>;
+struct kernel_t {
+  using op_t =
+    std::function<
+      void(
+        void*,
+        vector<void*> const&,
+        vector<void*> const&)>;
+
+  op_t op;
+
+  // How much work does this kernel do?
+  uint64_t flops;
+
+  // How many workers does this kernel use up?
+  int capacity;
+  // Note: each kernel object is tied to a device, so this is the
+  // capacity at which op may be called.
+};
 
 struct apply_t {
   loc_t loc;

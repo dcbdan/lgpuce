@@ -6,7 +6,11 @@
 #include <iostream>
 
 kernel_t gen_print(vector<uint64_t> shape) {
-  return [shape](void*, vector<void*> const& inns, vector<void*> const& outs) {
+  kernel_t ret;
+  ret.capacity = 1;
+  ret.flops = uint64_product(shape);
+  ret.op = [shape](void*, vector<void*> const& inns, vector<void*> const& outs) {
+
     float* data = (float*)inns[0];
     std::cout << "shape";
     for(auto const& d: shape) {
@@ -28,5 +32,6 @@ kernel_t gen_print(vector<uint64_t> shape) {
     }
     std::cout << std::endl;
   };
+  return ret;
 }
 

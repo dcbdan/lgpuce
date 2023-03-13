@@ -119,7 +119,7 @@ struct device_t {
         auto memlock = memory_lock.acquire_and_correct(read_intervals, write_intervals);
         {
           auto e = time_events.log_apply(runner_id);
-          apply.op(handler(), read_mems, write_mems);
+          apply.op.op(handler(), read_mems, write_mems);
           handler.synchronize();
         }
       }

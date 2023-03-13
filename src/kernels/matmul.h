@@ -8,7 +8,10 @@
 
 // ik,kj->ij
 kernel_t gen_cpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
-  return [ni,nj,nk](void*, vector<void*> const& inns, vector<void*> const& outs) {
+  kernel_t ret;
+  ret.capacity = 1;
+  ret.flops = ni*nj*nk;
+  ret.op = [ni,nj,nk](void*, vector<void*> const& inns, vector<void*> const& outs) {
     float* lhs = (float*)inns[0];
     float* rhs = (float*)inns[1];
     float* out = (float*)outs[0];
@@ -20,6 +23,7 @@ kernel_t gen_cpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
       }
     }}
   };
+  return ret;
 }
 
 kernel_t gen_gpu_matmul(
@@ -46,7 +50,10 @@ kernel_t gen_gpu_matmul(
   uint64_t ldb = rhs_n_row;
   uint64_t ldc = I;
 
-  return [trans_lhs_,trans_rhs_,I,J,KL,alpha,lda,ldb,beta,ldc]
+  kernel_t ret;
+  ret.capacity = 1000;
+  ret.flops = I*J*KL;
+  ret.op= [trans_lhs_,trans_rhs_,I,J,KL,alpha,lda,ldb,beta,ldc]
     (void* info, vector<void*> const& inns, vector<void*> const& outs)
   {
     cublasHandle_t* handle = (cublasHandle_t*)info;
@@ -57,6 +64,7 @@ kernel_t gen_gpu_matmul(
     cublasSgemm(*handle, trans_lhs_, trans_rhs_, I, J, KL, &alpha,
                 data_lhs, lda, data_rhs, ldb, &beta, data_out, ldc);
   };
+  return ret;
 }
 
 kernel_t gen_gpu_matmul(uint64_t ni, uint64_t nj, uint64_t nk) {
