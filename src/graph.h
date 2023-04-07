@@ -88,6 +88,9 @@ struct graph_t {
   }
 
   ident_t insert(command_t command, vector<ident_t> const& children) {
+    if(!valid_command(command)) {
+      throw std::runtime_error("command is not valid");
+    }
     if(!valid_children(command, children)) {
       throw std::runtime_error("all children are location specific");
     }
@@ -187,6 +190,19 @@ private:
       }
     }
     return false;
+  }
+
+  bool valid_command(command_t cmd) const {
+    if(std::holds_alternative<apply_t>(cmd)) {
+      apply_t const& apply = std::get<apply_t>(cmd);
+      return apply.is_valid();
+    } else if(std::holds_alternative<sendrecv_t>(cmd)) {
+      sendrecv_t const& move = std::get<sendrecv_t>(cmd);
+      return move.is_valid();
+    } else {
+      throw std::runtime_error("should not reach");
+      return false;
+    }
   }
 
   int num_dev_type(device_type_t const& dd) const {

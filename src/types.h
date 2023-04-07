@@ -80,6 +80,10 @@ struct apply_t {
   vector<mem_t> read_mems;
   vector<mem_t> write_mems;
   kernel_t op;
+
+  bool is_valid() const {
+    return true;
+  }
 };
 
 struct sendrecv_t {
@@ -87,6 +91,11 @@ struct sendrecv_t {
   loc_t dst;
   mem_t src_mem;
   mem_t dst_mem;
+
+  // Note that src and dst can't be the same!
+  bool is_valid() const {
+    return src != dst;
+  }
 
   // c = cpu
   // g = gpu
