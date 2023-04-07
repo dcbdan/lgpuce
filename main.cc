@@ -8,9 +8,85 @@
 #include "src/execute/cluster.h"
 #include "src/generate/hello_gpumove.h"
 #include "src/generate/gpumove_nodepend.h"
+#include "src/generate/inplace_add.h"
+#include "src/simulate/sim.h"
 
 #include <sstream>
 #include <cstdlib>
+
+sim::cluster_t anton_j0() {
+  using namespace sim;
+
+  // nvidia tesla p100 9.3 Teraflops single precision
+  uint64_t giga = 1e9;
+  uint64_t tera = 1e12;
+  uint64_t nvidia_tesla_p100 = (tera * 93) / 10;
+
+  auto make_gpu_dev = [&](int i) {
+    loc_t gpu = make_gpu_loc(i);
+    // Just give it a capacity of 1000
+    return sim::device_t {
+      .loc = gpu,
+      .compute = nvidia_tesla_p100 / 1000,
+      .capacity = 1000 };
+  };
+
+  auto make_nvlink = [&](int src, int dst) {
+    return sim::connection_t {
+      .bandwidth = 20 * giga,
+      .src = make_gpu_loc(src),
+      .dst = make_gpu_loc(dst)
+    };
+  };
+
+  auto make_cpu_to_gpu = [&](int gpu) {
+    return sim::connection_t {
+      .bandwidth = 5 * giga, // a guestimate
+      .src = make_cpu_loc(0),
+      .dst = make_gpu_loc(gpu)
+    };
+  };
+
+  auto make_gpu_to_cpu = [&](int gpu) {
+    return sim::connection_t {
+      .bandwidth = 5 * giga, // a guestimate
+      .src = make_gpu_loc(gpu),
+      .dst = make_cpu_loc(0)
+    };
+  };
+
+  sim::cluster_t cluster;
+  cluster.insert_device(sim::device_t {
+    .loc      = make_cpu_loc(0),
+    .compute  = 5 * giga, // just a guesstimate per core
+    .capacity = 24
+  });
+
+  cluster.insert_device(make_gpu_dev(0));
+  cluster.insert_device(make_gpu_dev(1));
+  cluster.insert_device(make_gpu_dev(2));
+
+  cluster.insert_connection(make_nvlink(0, 1));
+  cluster.insert_connection(make_nvlink(1, 0));
+
+  cluster.insert_connection(make_nvlink(0, 2));
+  cluster.insert_connection(make_nvlink(2, 0));
+
+  cluster.insert_connection(make_nvlink(1, 2));
+  cluster.insert_connection(make_nvlink(1, 2));
+  cluster.insert_connection(make_nvlink(2, 1));
+  cluster.insert_connection(make_nvlink(2, 1));
+
+  cluster.insert_connection(make_cpu_to_gpu(0));
+  cluster.insert_connection(make_cpu_to_gpu(1));
+  cluster.insert_connection(make_cpu_to_gpu(2));
+
+  cluster.insert_connection(make_gpu_to_cpu(0));
+  cluster.insert_connection(make_gpu_to_cpu(1));
+  cluster.insert_connection(make_gpu_to_cpu(2));
+
+  return cluster;
+}
 
 void main01() {
   int num_devices = 2;
@@ -74,8 +150,8 @@ void main05() {
   uint64_t memory_size = mat_size*(2*nm + 2);
   cudaMalloc(&memory, memory_size);
 
-  kernel_t init_op = gen_constant({ni,ni}, 1.0);
-  kernel_t op = gen_gpu_matmul(ni,ni,ni);
+  kernel_t::op_t init_op = gen_constant({ni,ni}, 1.0).op;
+  kernel_t::op_t op = gen_gpu_matmul(ni,ni,ni).op;
 
   vector<char> x(mat_size);
   init_op((void*)nullptr, vector<void*>{}, vector<void*>{(void*)x.data()});
@@ -297,11 +373,50 @@ void main09() {
 
 }
 
-int main(int argc, char** argv){
+void main10(int argc, char** argv) {
+  int n_elem = atoi(argv[1]);
+  int n_add = atoi(argv[2]);
+
+  auto [g_init, g_inplace, g_at_once] = inplace_add(n_elem, n_add);
+
+  cluster_t manager = cluster_t::from_graphs({g_init, g_inplace, g_at_once});
+
+  manager.run(g_init);
+  manager.run(g_inplace);
+
+  manager.run(g_init);
+  manager.run(g_at_once);
+}
+
+void main11(int argc, char** argv) {
+  sim::cluster_t j0 = anton_j0();
+
+  uint64_t size = sizeof(float)*10000*10000;
+  int n_gpu  = 3;
+  int n_blob = atoi(argv[1]);
+  int n_move = atoi(argv[2]);
+  graph_t graph = hello_gpumove(size, n_gpu, n_blob, n_move);
+
+  std::cout << simulate(j0, graph, false) << std::endl;
+  std::cout << "-----------------------------" << std::endl;
+
+  setting_t s;
+  s.num_cpu_apply = 0;
+  s.num_cpu_comm  = 0;
+  s.num_gpu_apply = 0;
+  s.num_gpu_comm  = 3;
+  cluster_t manager = cluster_t::from_graph(graph);
+  manager.run(graph, s);
+}
+
+int main(int argc, char** argv) {
   //main06(argc, argv);
   //main03();
   //main02();
   //main07();
-  main08(argc, argv);
+  //main08(argc, argv);
   //main09();
+  //main10(argc, argv);
+  main11(argc, argv);
 }
+
