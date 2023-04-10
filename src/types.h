@@ -36,6 +36,7 @@ struct loc_t {
   bool is_gpu() const { return device_type == device_type_t::gpu; }
 };
 
+
 loc_t make_cpu_loc(int id) {
   return loc_t { .device_type = device_type_t::cpu, id = id };
 }
@@ -74,6 +75,14 @@ struct kernel_t {
   // Note: each kernel object is tied to a device, so this is the
   // capacity at which op may be called.
 };
+
+bool operator==(loc_t const& lhs, loc_t const& rhs) {
+  return lhs.device_type == rhs.device_type && lhs.id == rhs.id;
+}
+
+bool operator!=(loc_t const& lhs, loc_t const& rhs) {
+  return lhs.device_type != rhs.device_type || lhs.id != rhs.id;
+}
 
 struct apply_t {
   loc_t loc;
@@ -122,10 +131,6 @@ struct sendrecv_t {
 };
 
 using command_t = std::variant<apply_t, sendrecv_t>;
-
-bool operator==(loc_t const& lhs, loc_t const& rhs) {
-  return lhs.device_type == rhs.device_type && lhs.id == rhs.id;
-}
 
 std::ostream& operator<<(std::ostream& out, mem_t mem) {
   out << "mem[" << mem.offset << "," << mem.offset + mem.size << ")";

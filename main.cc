@@ -10,6 +10,9 @@
 #include "src/generate/gpumove_nodepend.h"
 #include "src/generate/inplace_add.h"
 #include "src/simulate/sim.h"
+#include "src/generate/3d_parallel_matmul.h"
+#include "src/generate/gpu_add_test.h"
+#include "src/generate/gen_same_gpu_move_test.h"
 
 #include <sstream>
 #include <cstdlib>
@@ -90,7 +93,7 @@ sim::cluster_t anton_j0() {
 
 void main01() {
   int num_devices = 2;
-  auto [graph, memlocs] = sloppy_matmul(2, 2, 2, 1024, num_devices);
+  auto [graph, memlocs] = sloppy_matmul(2, 2, 2, 2, num_devices);
   graph.print(std::cout);
 
   std::cout << "-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*" << std::endl;
@@ -372,7 +375,6 @@ void main09() {
   }
 
 }
-
 void main10(int argc, char** argv) {
   int n_elem = atoi(argv[1]);
   int n_add = atoi(argv[2]);
@@ -409,6 +411,36 @@ void main11(int argc, char** argv) {
   manager.run(graph, s);
 }
 
+void test_3d_matmul() {
+  // parameters for 3d matrix multiplication
+  uint64_t p_1 = 2; 
+  uint64_t p_2 = 2; 
+  uint64_t p_3 = 2; 
+  uint64_t m = 1000; 
+  uint64_t n = 1000; 
+  uint64_t k = 1000;
+  uint64_t num_physical_GPUs = 3;
+
+  auto init = init_mat_GPU(p_1, p_2, p_3, m, n, k, num_physical_GPUs);
+  auto compute = matmul_3d(p_1, p_2, p_3, m, n, k, num_physical_GPUs);
+  cluster_t manager = cluster_t::from_graphs({init,compute});
+  manager.run(init);
+  manager.run(compute);
+}
+
+void test_GPU_matadd() {
+  // this passes
+  graph_t g = gpu_add_test(100);
+  cluster_t manager = cluster_t::from_graph(g);
+  manager.run(g);
+}
+
+void test_GPU_move() {
+  graph_t g = gen_move_test(100);
+  cluster_t manager = cluster_t::from_graph(g);
+  manager.run(g);
+}
+
 int main(int argc, char** argv) {
   //main06(argc, argv);
   //main03();
@@ -417,6 +449,9 @@ int main(int argc, char** argv) {
   //main08(argc, argv);
   //main09();
   //main10(argc, argv);
-  main11(argc, argv);
+  // main11(argc, argv);
+  // test_3d_matmul();
+  // test_GPU_matadd();
+  test_GPU_move();
 }
 
