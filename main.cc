@@ -416,9 +416,9 @@ void test_3d_matmul() {
   uint64_t p_1 = 2; 
   uint64_t p_2 = 2; 
   uint64_t p_3 = 2; 
-  uint64_t m = 1000; 
-  uint64_t n = 1000; 
-  uint64_t k = 1000;
+  uint64_t m = 1024; 
+  uint64_t n = 1024; 
+  uint64_t k = 1024;
   uint64_t num_physical_GPUs = 3;
 
   auto init = init_mat_GPU(p_1, p_2, p_3, m, n, k, num_physical_GPUs);
@@ -430,7 +430,7 @@ void test_3d_matmul() {
 
 void test_GPU_matadd() {
   // this passes
-  graph_t g = gpu_add_test(100);
+  graph_t g = gpu_add_test(1000, 4000);
   cluster_t manager = cluster_t::from_graph(g);
   manager.run(g);
 }
@@ -450,8 +450,8 @@ int main(int argc, char** argv) {
   //main09();
   //main10(argc, argv);
   // main11(argc, argv);
-  // test_3d_matmul();
+  test_3d_matmul();
   // test_GPU_matadd();
-  test_GPU_move();
+  // test_GPU_move();
 }
 

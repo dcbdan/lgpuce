@@ -59,9 +59,9 @@ kernel_t gen_gpu_matadd(
     throw std::runtime_error("gen_gpu_matadd: matrix dimensions do not match");
   }
 
-  uint64_t lda = lhs_n_row;
-  uint64_t ldb = rhs_n_row;
-  uint64_t ldc = lhs_n_row;
+  uint64_t lda = lhs_n_col;
+  uint64_t ldb = lhs_n_col;
+  uint64_t ldc = lhs_n_col;
 
   kernel_t ret;
   ret.capacity = 1000;
@@ -71,8 +71,11 @@ kernel_t gen_gpu_matadd(
   {
     cublasHandle_t* handle = (cublasHandle_t*)info;
     float* data_lhs = (float*)inns[0];
+    // std::cout << "MATADD data_lhs: " << data_lhs << std::endl;
     float* data_rhs = (float*)inns[1];
+    // std::cout << "MATADD data_rhs: " << data_rhs << std::endl;
     float* data_out = (float*)outs[0];
+    // std::cout << "MATADD data_out: " << data_out << std::endl;
     
     cublasSgeam(*handle, trans_lhs_, trans_rhs_, lhs_M, lhs_N, &alpha,
                 data_lhs, lda, &beta, data_rhs, ldb, data_out, ldc);

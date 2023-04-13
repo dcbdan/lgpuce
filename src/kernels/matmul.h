@@ -31,6 +31,8 @@ kernel_t gen_gpu_matmul(
   bool trans_rhs, uint64_t rhs_n_row, uint64_t rhs_n_col,
   float alpha = 1.0f)
 {
+  // print that entered gen_gpu_matmul
+  // std::cout << "gen_gpu_matmul" << std::endl;
   float beta = 0.0f;
 
   cublasOperation_t trans_lhs_ = trans_lhs ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -57,8 +59,11 @@ kernel_t gen_gpu_matmul(
     (void* info, vector<void*> const& inns, vector<void*> const& outs)
   {
     cublasHandle_t* handle = (cublasHandle_t*)info;
+    // std::cout << "MATMUL data_lhs: " << inns[0] << std::endl;
     float* data_lhs = (float*)inns[0];
+    // std::cout << "MATMUL data_rhs: " << inns[1] << std::endl;
     float* data_rhs = (float*)inns[1];
+    // std::cout << "MATMUL data_out: " << outs[0] << std::endl;
     float* data_out = (float*)outs[0];
 
     cublasSgemm(*handle, trans_lhs_, trans_rhs_, I, J, KL, &alpha,

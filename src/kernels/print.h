@@ -19,13 +19,14 @@ kernel_t gen_print(vector<uint64_t> shape) {
     std::cout << std::endl;
     uint64_t total = uint64_product(shape);
 
-    if(total < 20) {
+    // let it print more elements
+    if(total < 256) {
       std::cout << "data";
     } else {
-      std::cout << "data[0:20]";
+      std::cout << "data[0:255]";
     }
 
-    uint64_t nto = 20;
+    uint64_t nto = 256;
     nto = std::min(nto, total);
     for(uint64_t i = 0; i != nto; ++i) {
       std::cout << " " << data[i];

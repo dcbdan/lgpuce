@@ -6,6 +6,9 @@
 
 kernel_t gen_gpu_move(uint64_t size) {
 
+  // print that gpu move is being called
+  // std::cout << "gen_gpu_move called" << std::endl;
+
   kernel_t ret;
   ret.capacity = 1;
   ret.flops = size;
