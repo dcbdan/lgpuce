@@ -293,7 +293,7 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
   }
 
   std::vector<std::vector<ident_t>> aggregate_requirements;
-  for (auto i = 0; i < p_1 * p_2; ++i){
+  for (auto i = 0; i < p_1 * p_2 * p_3; ++i){
     aggregate_requirements.push_back(std::vector<ident_t>());
   }
 
@@ -358,7 +358,8 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                 .op = gen_gpu_move(size_of_A_il_j) });
             // print src offset, dst offset and size
             std::cout << "Step 1 (Transfer A same GPU) src offset: " << my_offset_A_il_j << " dst offset: " << other_virtual_GPU_memory_offset 
-                        << " size: " << size_of_A_il_j << " command number: " << my_move_A << std::endl;
+                        << " size: " << size_of_A_il_j << " Src GPU: " << virtual_GPU_id << " Dst GPU: " 
+                        << other_virtual_GPU_id << " command number: " << my_move_A << std::endl;
           }
           else {
             // if the other GPU is on a different physical GPU, we need to send the data
@@ -373,8 +374,8 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
               );
               // print src offset, dst offset and size
               std::cout << "Step 1 (Transfer A diff GPU) src offset: " << my_offset_A_il_j << " dst offset: " << other_virtual_GPU_memory_offset 
-                          << " size: " << size_of_A_il_j << " Src GPU: " << physical_GPU_id << " Dst GPU: " 
-                          << other_physical_GPU_id << " command number: " << my_move_A << std::endl;
+                          << " size: " << size_of_A_il_j << " Src GPU: " << virtual_GPU_id << " Dst GPU: " 
+                          << other_virtual_GPU_id << " command number: " << my_move_A << std::endl;
           }
 
           // add the communication to the vector
@@ -406,7 +407,8 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                 .op = gen_gpu_move(size_of_B_lj_i) });
             // print src and dst offset and size
             std::cout << "Step 1 (Transfer B same GPU) src offset: " << my_offset_B_lj_i << " dst offset: " << other_virtual_GPU_memory_offset 
-                        << " size: " << size_of_B_lj_i << " command number: " << my_move_B << std::endl;
+                        << " size: " << size_of_B_lj_i << " Src GPU: " << virtual_GPU_id << " Dst GPU: " << other_virtual_GPU_id
+                        <<  " command number: " << my_move_B << std::endl;
           }
           else {
             // if the other GPU is on a different physical GPU, we need to send the data
@@ -421,8 +423,8 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
             );
             // print src and dst offset and size
             std::cout << "Step 1 (Transfer B diff GPU) src offset: " << my_offset_B_lj_i << " dst offset: " << other_virtual_GPU_memory_offset 
-                        << " size: " << size_of_B_lj_i << " Src GPU: " << physical_GPU_id << " Dst GPU: " 
-                        << other_physical_GPU_id<< " command number: " << my_move_B << std::endl;
+                        << " size: " << size_of_B_lj_i << " Src GPU: " << virtual_GPU_id << " Dst GPU: " 
+                        << other_virtual_GPU_id << " command number: " << my_move_B << std::endl;
           }
 
           // add the communication to the vector
@@ -503,7 +505,7 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
         compute_requirements[virtual_GPU_id] = my_compute;
         // print my input and output offsets and command number
         std::cout << "Step 2: Input 1: " << my_offset_start << " Input 2: " << my_offset_start + size_of_A_il << " Output: " 
-          << my_offset_start + size_of_A_il + size_of_B_lj << " command number: " << my_compute << std::endl;
+          << my_offset_start + size_of_A_il + size_of_B_lj << " Src GPU: " << virtual_GPU_id <<  " command number: " << my_compute << std::endl;
           // print all the requirements
           for (auto req: my_requirement){
             std::cout << "Requirement: " << req << std::endl;
@@ -572,8 +574,9 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                 {compute_requirements[virtual_GPU_id]});
 
             // print read offset, write offset
-            std::cout << "Step 3: read offset: " << my_offset_D_ij_l_r << " write offset: " << other_virtual_GPU_memory_offset << " size: " 
-              << size_of_C_ij_l << " command number: " << my_move_D << std::endl;
+            std::cout << "Step 3: read offset (same GPU): " << my_offset_D_ij_l_r << " write offset: " << other_virtual_GPU_memory_offset << " size: " 
+              << size_of_C_ij_l << " Src GPU: " << virtual_GPU_id << " Dst GPU: " << other_virtual_GPU_id
+              << " command number: " << my_move_D << std::endl;
           }
           else {
             // if the other GPU is on a different physical GPU, we need to send the data
@@ -587,10 +590,11 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                 }, {compute_requirements[virtual_GPU_id]}
             );
             std::cout << "Step 3: read offset: " << my_offset_D_ij_l_r << " write offset: " << other_virtual_GPU_memory_offset 
-              << " size: " << size_of_C_ij_l << " command number: " << my_move_D << std::endl;
+              << " size: " << size_of_C_ij_l << " Src GPU: " << virtual_GPU_id <<  " Dest GPU: " << other_virtual_GPU_id 
+              << " command number: " << my_move_D << std::endl;
           }
 
-          C_ij_l_comms[i * p_2 + j].push_back(my_move_D);
+          C_ij_l_comms[other_virtual_GPU_id].push_back(my_move_D);
 
           // print my compute requirement
           std::cout << "My compute requirement: " << compute_requirements[virtual_GPU_id] << std::endl;
@@ -673,16 +677,16 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                 {mem_t{.offset = my_offset_C_ij_l, .size = size_of_C_ij_l}}},
               .write_mems = {mem_t{.offset = my_offset_C_ij_l, .size = size_of_C_ij_l}},
               .op = gen_gpu_matadd(num_row, n)}, 
-              C_ij_l_comms[i * p_2 + j]);
+              C_ij_l_comms[virtual_GPU_id]);
 
               // print aggregate input offsets and output offsets
               std::cout << "Step 4: input offset 1 (same Dev): " << my_offset_D_ij_l_r << " input offset 2: " << my_offset_C_ij_l << 
                 " output offset: " << my_offset_C_ij_l << std::endl;
               // print requirements
-              for (auto requirement: C_ij_l_comms[i * p_2 + j]){
+              for (auto requirement: C_ij_l_comms[virtual_GPU_id]){
                 std::cout << "requirement: " << requirement << std::endl;
               }
-            aggregate_requirements[i * p_2 + j].push_back(my_agg);
+            aggregate_requirements[virtual_GPU_id].push_back(my_agg);
           }
           else{
             auto my_input = mem_t{.offset = my_offset_D_ij_l + size_of_D_ij_l + l_2 * size_of_C_ij_l, .size = size_of_C_ij_l};
@@ -693,17 +697,17 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                 .read_mems = {my_input, my_output},
                 .write_mems = {my_output},
                 .op = gen_gpu_matadd(num_row, n)}, 
-                C_ij_l_comms[i * p_2 + j]);
+                C_ij_l_comms[virtual_GPU_id]);
 
             // print aggregate input offsets and output offsets
               std::cout << "Step 4: input offset 1 (diff Dev): " << my_offset_D_ij_l + size_of_D_ij_l + l_2 * size_of_C_ij_l 
-                << " input offset 2: " << my_offset_C_ij_l  << " output offset: " << my_offset_C_ij_l << std::endl;
+                << " input offset 2: " << my_offset_C_ij_l << " Src GPU: " << virtual_GPU_id << " output offset: "  << my_offset_C_ij_l << std::endl;
               // print requirements
-              for (auto requirement: C_ij_l_comms[i * p_2 + j]){
+              for (auto requirement: C_ij_l_comms[virtual_GPU_id]){
                 std::cout << "requirement: " << requirement << std::endl;
               }
             
-            aggregate_requirements[i * p_2 + j].push_back(my_agg);
+            aggregate_requirements[virtual_GPU_id].push_back(my_agg);
           }
           
         }

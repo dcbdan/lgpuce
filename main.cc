@@ -413,12 +413,12 @@ void main11(int argc, char** argv) {
 
 void test_3d_matmul() {
   // parameters for 3d matrix multiplication
-  uint64_t p_1 = 2; 
-  uint64_t p_2 = 2; 
-  uint64_t p_3 = 2; 
-  uint64_t m = 1024; 
-  uint64_t n = 1024; 
-  uint64_t k = 1024;
+  uint64_t p_1 = 3; 
+  uint64_t p_2 = 3; 
+  uint64_t p_3 = 3; 
+  uint64_t m = 648; 
+  uint64_t n = 648; 
+  uint64_t k = 648;
   uint64_t num_physical_GPUs = 3;
 
   auto init = init_mat_GPU(p_1, p_2, p_3, m, n, k, num_physical_GPUs);
