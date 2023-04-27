@@ -561,6 +561,7 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                 + size_of_B_lj + size_of_D_ij_l + l_2 * size_of_C_ij_l;
 
           if (l_2 == l){
+            C_ij_l_comms[virtual_GPU_id].push_back(compute_requirements[virtual_GPU_id]);
             continue;
           }
           ident_t my_move_D;
@@ -681,7 +682,7 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
 
               // print aggregate input offsets and output offsets
               std::cout << "Step 4: input offset 1 (same Dev): " << my_offset_D_ij_l_r << " input offset 2: " << my_offset_C_ij_l << 
-                " output offset: " << my_offset_C_ij_l << std::endl;
+                " output offset: " << my_offset_C_ij_l << " Src GPU: " << virtual_GPU_id << std::endl;
               // print requirements
               for (auto requirement: C_ij_l_comms[virtual_GPU_id]){
                 std::cout << "requirement: " << requirement << std::endl;
@@ -701,7 +702,8 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
 
             // print aggregate input offsets and output offsets
               std::cout << "Step 4: input offset 1 (diff Dev): " << my_offset_D_ij_l + size_of_D_ij_l + l_2 * size_of_C_ij_l 
-                << " input offset 2: " << my_offset_C_ij_l << " Src GPU: " << virtual_GPU_id << " output offset: "  << my_offset_C_ij_l << std::endl;
+                << " input offset 2: " << my_offset_C_ij_l << " output offset: "  << my_offset_C_ij_l
+                << " Src GPU: " << virtual_GPU_id << std::endl;
               // print requirements
               for (auto requirement: C_ij_l_comms[virtual_GPU_id]){
                 std::cout << "requirement: " << requirement << std::endl;
