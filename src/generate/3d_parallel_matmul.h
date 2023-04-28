@@ -132,6 +132,8 @@ graph_t init_mat_GPU(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint6
                                               : std::floor(num_virtual_GPUs / num_physical_GPUs) + 1;
   std::vector<uint64_t> memory_offset_virtual_GPUs;
   uint64_t virtual_GPU_memory_size = std::floor(gpu_mem_size / num_virtual_GPUs_per_physical);
+  // change virtual_GPU_memory_size to 4 byte aligned
+  virtual_GPU_memory_size = virtual_GPU_memory_size - (virtual_GPU_memory_size % 4);
   // Check if there is enough memory on the GPU to perform 3d parallel
   if (virtual_GPU_memory_size < size_of_A_il_j + size_of_B_lj_i + + size_of_D_ij_l * 2 + size_of_C_ij_l){
     throw std::runtime_error("*** Not enough memory on GPU to perfrom 3d parallel ***\n");
@@ -245,6 +247,7 @@ graph_t matmul_3d(uint64_t p_1, uint64_t p_2, uint64_t p_3, uint64_t m, uint64_t
                                               : std::floor(num_virtual_GPUs / num_physical_GPUs) + 1;
   std::vector<uint64_t> memory_offset_virtual_GPUs;
   uint64_t virtual_GPU_memory_size = std::floor(gpu_mem_size / num_virtual_GPUs_per_physical);
+  virtual_GPU_memory_size = virtual_GPU_memory_size - (virtual_GPU_memory_size % 4);
   for (auto i = 0; i < num_virtual_GPUs_per_physical; ++i){
     memory_offset_virtual_GPUs.push_back(virtual_GPU_memory_size * i);
     // print offset

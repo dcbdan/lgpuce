@@ -5,6 +5,7 @@
 
 #include "interval_lock.h"
 
+#include <iostream>
 #include <queue>
 #include <unordered_map>
 
@@ -225,15 +226,15 @@ struct device_t {
           // 2. Copy from send_ptr which should already have a write lock
           {
             auto e = time_events.log_comm(runner_id);
-            if(cudaMemcpyAsync(
+            auto success = cudaMemcpyAsync(
                 (void*)recv_ptr,
                 (void*)send_ptr,
                 move.src_mem.size,
                 cudaMemcpyDefault,
-                cudaStreamPerThread)
-                != cudaSuccess)
+                cudaStreamPerThread);
+            if(success != cudaSuccess)
             {
-              throw std::runtime_error("did not cuda memcpy");
+              throw std::runtime_error("did not cuda memcpy; cuda error code: " + std::to_string(success) + "\n");
             }
             handler.synchronize();
           }
